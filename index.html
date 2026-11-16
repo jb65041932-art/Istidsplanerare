@@ -138,6 +138,14 @@ body:not(.ro) .blk{cursor:grab;touch-action:none;user-select:none;-webkit-user-s
 .blk.warn{box-shadow:inset 0 3px 0 var(--amber)}
 .blk.clash{outline:3px solid var(--amber);outline-offset:-3px}
 .blk.moving{opacity:.3}
+.tbdlabel{padding:6px 7px 6px 0;text-align:right;font:500 11px/1.2 var(--body);color:var(--muted);border-bottom:1px solid var(--line)}
+.tbdcell{display:flex;flex-direction:column;gap:3px;padding:4px 3px;border-left:1px solid var(--line);border-bottom:1px solid var(--line);min-width:0}
+.tbd{display:block;width:100%;text-align:left;border:1px dashed var(--c);border-left:5px solid var(--c);border-radius:4px;
+  background:color-mix(in srgb,var(--c) 12%,var(--surface));padding:2px 5px 3px 6px;font:500 13px/1.2 var(--cond);color:var(--ink)}
+button.tbd{cursor:pointer}
+.tbd b{display:block;font-weight:700;font-size:14px}
+.tbd span{display:block;font-size:12px;color:var(--muted);font-style:italic}
+.agenda time.none{font-style:italic}
 .blk .rz{position:absolute;left:0;right:0;bottom:0;height:8px;cursor:ns-resize}
 body.ro .blk .rz{display:none}
 .preview{position:absolute;left:2px;right:2px;border:2px dashed var(--ink);border-radius:4px;
@@ -278,6 +286,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
     <label class="f"><span>Start</span><input type="time" id="pStart" step="300"></label>
     <label class="f"><span>Slut</span><input type="time" id="pEnd" step="300"></label>
   </div>
+  <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pUntimed"><span style="margin:0">Tiden är inte fastställd än</span></label>
   <label class="f"><span>Typ</span><select id="pType"><option value="traning">Träning</option><option value="match">Match</option><option value="ovrigt">Övrigt</option></select></label>
   <label class="f"><span>Anteckning</span><input type="text" id="pNote" maxlength="120" placeholder="Till exempel motståndare och matchstart"></label>
   <p class="dlgerr" id="pErr"></p>
@@ -425,12 +434,13 @@ const undoStack=[];
 const curKey=()=>keyOf(state.monday);
 const cur=()=>state.weeks[curKey()]||[];
 const team=id=>state.teams.find(t=>t.id===id);
+const timed=()=>cur().filter(b=>!b.untimed);
 
 /* ---------- Läsa från databasen ---------- */
 const ok=r=>{if(r.error)throw r.error;return r.data;};
 const rowToB=r=>({id:r.id,teams:Array.isArray(r.team_ids)?r.team_ids:[],day:r.day,start:r.start_min,end:r.end_min,
-  type:TYPES[r.type]?r.type:"traning",note:r.note||""});
-const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams});
+  type:TYPES[r.type]?r.type:"traning",note:r.note||"",untimed:!!r.untimed});
+const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams,untimed:!!b.untimed});
 function cleanSettings(d){
   const s=clone(DEF); if(!d) return s;
   if(Array.isArray(d.open_hours)&&d.open_hours.length===7){
@@ -441,7 +451,7 @@ function cleanSettings(d){
   return s;
 }
 async function fetchWeek(key){
-  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
+  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids,untimed").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
 }
 const cleanRinks=d=>(d||[]).map(r=>({id:r.id,name:String(r.name||"Hall"),open_hours:r.open_hours,buffer_min:r.buffer_min,default_len:r.default_len}));
 const fetchRinks=()=>sb.from("rinks").select("id,name,sort,open_hours,buffer_min,default_len").order("sort").then(ok).then(cleanRinks);
@@ -558,7 +568,7 @@ function issues(){
   const list=[],flag={};
   const name=b=>label(b);
   for(let d=0;d<7;d++){
-    const day=cur().filter(b=>b.day===d).sort((a,b)=>a.start-b.start||a.end-b.end);
+    const day=timed().filter(b=>b.day===d).sort((a,b)=>a.start-b.start||a.end-b.end);
     const [o,c]=state.settings.open[d];
     day.forEach((b,i)=>{
       if(b.start<o||b.end>c){flag[b.id]=flag[b.id]||"warn";list.push({k:"warn",t:`${DAYS[d]} ${fmt(b.start)}: ${name(b)} ligger utanför öppettiden ${fmt(o)}–${fmt(c)}.`});}
@@ -582,7 +592,7 @@ function colorOf(b){const t=team(b.teams[0]);return t?t.color:"#7C8794";}
 /* ---------- Rendering ---------- */
 function axisRange(){
   let a=Math.min(...state.settings.open.map(o=>o[0])),b=Math.max(...state.settings.open.map(o=>o[1]));
-  for(const k of cur()){a=Math.min(a,k.start);b=Math.max(b,k.end);}
+  for(const k of timed()){a=Math.min(a,k.start);b=Math.max(b,k.end);}
   return [Math.floor(a/60)*60,Math.ceil(b/60)*60];
 }
 function render(){
@@ -645,6 +655,17 @@ function renderCal(){
     const dt=addDays(state.monday,d);
     cal.append(h("div",{class:"dayhead"+(d===todayIdx?" today":"")},DAYS[d],h("small",{text:`${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`})));
   }
+  const loose=cur().filter(k=>k.untimed);
+  if(loose.length){
+    cal.append(h("div",{class:"tbdlabel",text:"Tid saknas"}));
+    for(let d=0;d<7;d++) cal.append(h("div",{class:"tbdcell"},loose.filter(k=>k.day===d).map(k=>{
+      const el=h(state.canEdit?"button":"div",{class:"tbd",type:state.canEdit?"button":null,style:`--c:${colorOf(k)}`,
+        title:`Tid ej fastställd: ${label(k)}${k.note?" – "+k.note:""}`},
+        h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),k.note?h("span",{text:k.note}):null);
+      if(state.canEdit) el.addEventListener("click",()=>openPass(k));
+      return el;
+    })));
+  }
   const ax=h("div",{class:"axis",style:`height:${px(b)}px`});
   for(let m=a;m<b;m+=60) ax.append(h("span",{text:fmt(m),style:`top:${px(m)}px`}));
   cal.append(ax);
@@ -653,7 +674,7 @@ function renderCal(){
     const [o,c]=state.settings.open[d];
     if(o>a) col.append(h("div",{class:"closed",style:`top:0;height:${px(o)}px`}));
     if(c<b) col.append(h("div",{class:"closed",style:`top:${px(c)}px;height:${px(b)-px(c)}px`}));
-    const list=cur().filter(k=>k.day===d),pos=layoutDay(list);
+    const list=timed().filter(k=>k.day===d),pos=layoutDay(list);
     for(const k of list){
       const p=pos[k.id],len=k.end-k.start,org=orgOf(k);
       const cls="blk"+(k.type==="match"?" match":"")+(len<40?" short":"")+(flag[k.id]?" "+flag[k.id]:"");
@@ -673,17 +694,17 @@ function renderCal(){
   }
 }
 function agendaItem(k,tap,flag){
-  const inner=[h("time",{text:`${fmt(k.start)}–${fmt(k.end)}`}),
+  const inner=[k.untimed?h("time",{class:"none",text:"Tid saknas"}):h("time",{text:`${fmt(k.start)}–${fmt(k.end)}`}),
     h("div",null,h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),k.note?h("span",{text:" "+k.note}):null)];
   if(!tap) return h("li",{style:`--c:${colorOf(k)}`},inner);
-  const btn=h("button",{class:"agitem",type:"button","aria-label":`Ändra ${label(k)}, ${fmt(k.start)} till ${fmt(k.end)}`},inner);
+  const btn=h("button",{class:"agitem",type:"button","aria-label":k.untimed?`Ändra ${label(k)}, tid saknas`:`Ändra ${label(k)}, ${fmt(k.start)} till ${fmt(k.end)}`},inner);
   btn.addEventListener("click",()=>openPass(k));
   return h("li",{class:"tap"+(flag[k.id]?" "+flag[k.id]:""),style:`--c:${colorOf(k)}`},btn);
 }
 /* Mobilens vy. Läsare ser hela veckan, planerare en dag i taget med tryckbara pass. */
 function renderAgenda(){
   const box=$("#agenda"); box.replaceChildren();
-  const byDay=d=>cur().filter(k=>k.day===d).sort((x,y)=>x.start-y.start);
+  const byDay=d=>cur().filter(k=>k.day===d).sort((x,y)=>(y.untimed-x.untimed)||x.start-y.start);
   if(state.canEdit){
     const {flag}=issues(),today=mondayOf(new Date()).getTime()===state.monday.getTime()?(new Date().getDay()+6)%7:-1;
     box.append(h("div",{class:"daystrip",role:"group","aria-label":"Välj dag"},DAYS.map((name,d)=>{
@@ -700,7 +721,7 @@ function renderAgenda(){
     else box.append(h("p",{class:"empty",text:"Inga pass den här dagen."}));
     const add=h("button",{class:"btn primary addpass",type:"button",text:"Nytt pass",disabled:!state.teams.length});
     add.addEventListener("click",()=>{
-      const last=list[list.length-1],start=last?Math.min(last.end+state.settings.buffer,1380):17*60;
+      const tl=list.filter(k=>!k.untimed),last=tl[tl.length-1],start=last?Math.min(last.end+state.settings.buffer,1380):17*60;
       openPass({day:state.day,start,end:Math.min(start+state.settings.len,1440),teams:[],type:"traning",note:""});
     });
     box.append(add);
@@ -724,7 +745,7 @@ function renderStats(){
   const t=$("#stats"),w=isoWeek(state.monday),wk={},rn=(rink()||{}).name||"Hallen";
   const ys=state.year&&state.year.key===curKey()&&state.year.rid===state.rinkId?state.year.data:null;
   let wkPass=0,wkMin=0;
-  for(const b of cur()){
+  for(const b of timed()){
     const len=b.end-b.start; wkPass++; wkMin+=len;
     for(const id of b.teams){(wk[id]=wk[id]||{p:0,m:0}).p++; wk[id].m+=len;}
   }
@@ -870,6 +891,7 @@ function openPass(b){
   $("#pDay").replaceChildren(...DAYS.map((d,i)=>h("option",{value:String(i),text:d})));
   $("#pDay").value=String(b.day); $("#pStart").value=fmt(b.start); $("#pEnd").value=fmt(Math.min(b.end,1439));
   $("#pType").value=b.type||"traning"; $("#pNote").value=b.note||""; $("#pErr").textContent="";
+  $("#pUntimed").checked=!!b.untimed; $("#pStart").disabled=$("#pEnd").disabled=!!b.untimed;
   $("#pDel").hidden=isNew; $("#pSave").textContent=isNew?"Lägg till pass":"Spara pass";
   $("#dlgPass").showModal();
   const picked=box.querySelector("input:checked"); if(picked) picked.scrollIntoView({block:"nearest"});
@@ -878,12 +900,14 @@ $("#pSave").addEventListener("click",()=>{
   const teams=[...document.querySelectorAll("#pTeams input:checked")].map(i=>i.value);
   const start=parseT($("#pStart").value),end=parseT($("#pEnd").value);
   if(!teams.length) return void($("#pErr").textContent="Välj minst ett lag.");
-  if(!(end>start)) return void($("#pErr").textContent="Sluttiden måste vara efter starttiden.");
-  const list=clone(cur()),vals={teams,day:+$("#pDay").value,start,end,type:$("#pType").value,note:$("#pNote").value.trim()};
+  const untimed=$("#pUntimed").checked;
+  if(!(end>start)) return void($("#pErr").textContent=untimed?"Ange en ungefärlig tid, den används när tiden väl sätts.":"Sluttiden måste vara efter starttiden.");
+  const list=clone(cur()),vals={teams,day:+$("#pDay").value,start,end,type:$("#pType").value,note:$("#pNote").value.trim(),untimed};
   const ex=editPass.id&&list.find(k=>k.id===editPass.id);
   if(ex) Object.assign(ex,vals); else list.push(Object.assign({id:uid()},vals));
   $("#dlgPass").close(); setWeek(curKey(),list);
 });
+$("#pUntimed").addEventListener("change",e=>{$("#pStart").disabled=$("#pEnd").disabled=e.target.checked;});
 $("#pDel").addEventListener("click",()=>{
   $("#dlgPass").close(); setWeek(curKey(),cur().filter(k=>k.id!==editPass.id));
 });
