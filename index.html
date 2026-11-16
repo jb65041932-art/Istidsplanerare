@@ -56,6 +56,24 @@ h2{font-size:20px;font-weight:600}
 .btn.danger{color:var(--red)}
 .btn.icon{padding:7px 11px;font-weight:600}
 :focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.rinks{display:flex;gap:4px;margin-top:8px}
+.rinkbtn{background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 12px;cursor:pointer;font:600 15px/1.3 var(--cond)}
+.rinkbtn:hover{border-color:var(--blue)}
+.rinkbtn[aria-pressed="true"]{background:var(--blue);border-color:var(--blue);color:var(--on-blue)}
+.ulist{list-style:none;margin:0 0 14px;padding:0;border:1px solid var(--line);border-radius:6px}
+.ulist li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:8px 10px;border-bottom:1px solid var(--line)}
+.ulist li:last-child{border-bottom:0}
+.ulist .who2{flex:1 1 12em;min-width:0}
+.ulist .who2 b{display:block;font-weight:500;overflow-wrap:anywhere}
+.ulist .who2 span{color:var(--muted);font-size:13px}
+.ulist .btn{padding:4px 9px;font-size:14px}
+.inviterow{display:flex;gap:8px;align-items:end}
+.inviterow .f{flex:1;margin:0}
+.linkbox{background:var(--sunken);border-radius:6px;padding:12px;margin:14px 0 4px}
+.linkbox p{margin:0 0 8px}
+.linkbox input{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg);margin-bottom:8px}
+.linkbox .dlgbtns{justify-content:flex-start;margin:0}
+#dlgUsers{width:min(560px,calc(100vw - 24px))}
 .auth{display:flex;gap:8px;align-items:center}
 body.ro .auth{margin-left:auto}
 .auth .who{color:var(--muted);font-size:13px;max-width:16em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -147,7 +165,7 @@ body.ro .blk .rz{display:none}
 .warnlist li{padding:6px 0 6px 12px;border-left:4px solid var(--amber);margin-bottom:4px;background:var(--surface)}
 .warnlist li.clash{border-left-color:var(--red)}
 .tablescroll{overflow-x:auto;background:var(--surface);border:1px solid var(--line);border-radius:8px}
-table{border-collapse:collapse;width:100%;min-width:560px;font-variant-numeric:tabular-nums}
+table{border-collapse:collapse;width:100%;min-width:700px;font-variant-numeric:tabular-nums}
 th,td{padding:7px 12px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
 th:first-child,td:first-child,th:nth-child(2),td:nth-child(2){text-align:left}
 thead th{background:var(--sunken);font:600 14px/1.2 var(--cond)}
@@ -188,7 +206,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   <header class="top">
     <div class="brand">
       <h1>Istidsplanerare</h1>
-      <p>Ishall A</p>
+      <div class="rinks" id="rinks" role="group" aria-label="Välj hall"></div>
     </div>
     <div class="weeknav">
       <button class="btn icon" id="prev" aria-label="Föregående vecka">‹</button>
@@ -202,6 +220,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
       <button class="btn" id="newpass">Nytt pass</button>
       <button class="btn" id="copy">Kopiera till nästa vecka</button>
       <button class="btn" id="hours">Öppettider</button>
+      <button class="btn" id="users" hidden>Användare</button>
     </div>
     <div class="auth">
       <span class="who" id="who"></span>
@@ -285,16 +304,45 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
 <dialog id="dlgLogin" aria-labelledby="dlgLoginH">
   <form id="loginForm">
     <h2 id="dlgLoginH">Logga in</h2>
-    <p class="dlgnote" id="lNote">För dig som planerar istiderna. Schemat går att läsa utan inloggning.</p>
+    <p class="dlgnote">För dig som planerar istiderna. Schemat går att läsa utan inloggning. Saknar du konto ber du den som ansvarar för schemat om en inbjudan.</p>
     <label class="f"><span>E-post</span><input type="email" id="lEmail" autocomplete="username" required></label>
-    <label class="f"><span>Lösenord</span><input type="password" id="lPass" autocomplete="current-password" minlength="8" required></label>
+    <label class="f"><span>Lösenord</span><input type="password" id="lPass" autocomplete="current-password" required></label>
     <p class="dlgerr" id="lErr" role="alert"></p>
     <div class="dlgbtns">
-      <button type="button" class="linkbtn left" id="lMode">Första gången? Skapa konto</button>
       <button type="button" class="btn" data-close>Avbryt</button>
       <button type="submit" class="btn primary" id="lSubmit">Logga in</button>
     </div>
   </form>
+</dialog>
+
+<dialog id="dlgPw" aria-labelledby="dlgPwH">
+  <form id="pwForm">
+    <h2 id="dlgPwH">Välj lösenord</h2>
+    <p class="dlgnote">Välkommen. Välj ett lösenord på minst 8 tecken. Sedan loggar du in med din e-postadress och det lösenordet.</p>
+    <label class="f"><span>Nytt lösenord</span><input type="password" id="pwNew" autocomplete="new-password" minlength="8" required></label>
+    <p class="dlgerr" id="pwErr" role="alert"></p>
+    <div class="dlgbtns"><button type="submit" class="btn primary" id="pwSubmit">Spara lösenord</button></div>
+  </form>
+</dialog>
+
+<dialog id="dlgUsers" aria-labelledby="dlgUsersH">
+  <h2 id="dlgUsersH">Användare</h2>
+  <p class="dlgnote">De här personerna får ändra schemat. Alla andra kan bara läsa det.</p>
+  <ul class="ulist" id="uList"></ul>
+  <form class="inviterow" id="inviteForm">
+    <label class="f"><span>Bjud in med e-postadress</span><input type="email" id="uEmail" autocomplete="off" required></label>
+    <button type="submit" class="btn primary" id="uInvite">Bjud in</button>
+  </form>
+  <div class="linkbox" id="uLinkBox" hidden>
+    <p id="uLinkText"></p>
+    <input type="text" id="uLink" readonly aria-label="Inbjudningslänk">
+    <div class="dlgbtns">
+      <a class="btn primary" id="uMail" href="#" style="text-decoration:none">Skicka med e-post</a>
+      <button type="button" class="btn" id="uCopy">Kopiera länk</button>
+    </div>
+  </div>
+  <p class="dlgerr" id="uErr" role="alert" style="margin-top:10px"></p>
+  <div class="dlgbtns"><button class="btn" data-close>Stäng</button></div>
 </dialog>
 
 <dialog id="dlgConfirm" aria-labelledby="cText">
@@ -354,7 +402,9 @@ const addDays=(d,n)=>new Date(d.getTime()+n*DAYMS);
 const CFG=window.ISTID_CONFIG||{};
 const sb=(window.supabase&&CFG.url&&CFG.key)?window.supabase.createClient(CFG.url,CFG.key):null;
 const state={monday:mondayOf(new Date()),weeks:{},teams:[],settings:clone(DEF),canEdit:false,connected:false,
-  user:null,year:null,loadErr:false,writeErr:""};
+  user:null,role:null,year:null,loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null};
+const rink=()=>state.rinks.find(r=>r.id===state.rinkId)||null;
+const slug=n=>String(n).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 let drag=null, pendingRender=false, pending=0, writeGen=0, chain=Promise.resolve();
 const undoStack=[];
 const curKey=()=>keyOf(state.monday);
@@ -365,7 +415,7 @@ const team=id=>state.teams.find(t=>t.id===id);
 const ok=r=>{if(r.error)throw r.error;return r.data;};
 const rowToB=r=>({id:r.id,teams:Array.isArray(r.team_ids)?r.team_ids:[],day:r.day,start:r.start_min,end:r.end_min,
   type:TYPES[r.type]?r.type:"traning",note:r.note||""});
-const bToRow=(key,b)=>({id:b.id,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams});
+const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams});
 function cleanSettings(d){
   const s=clone(DEF); if(!d) return s;
   if(Array.isArray(d.open_hours)&&d.open_hours.length===7){
@@ -376,27 +426,49 @@ function cleanSettings(d){
   return s;
 }
 async function fetchWeek(key){
-  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids").eq("week_start",key.slice(1))).map(rowToB);
+  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
+}
+const cleanRinks=d=>(d||[]).map(r=>({id:r.id,name:String(r.name||"Hall"),open_hours:r.open_hours,buffer_min:r.buffer_min,default_len:r.default_len}));
+const fetchRinks=()=>sb.from("rinks").select("id,name,sort,open_hours,buffer_min,default_len").order("sort").then(ok).then(cleanRinks);
+function pickRink(){
+  let want=new URLSearchParams(location.search).get("hall");
+  if(!want){try{want=localStorage.getItem("istid.hall");}catch(e){}}
+  const r=state.rinks.find(x=>slug(x.name)===want)||state.rinks[0];
+  state.rinkId=r?r.id:null; state.settings=cleanSettings(r);
+}
+function switchRink(id){
+  if(id===state.rinkId) return;
+  state.rinkId=id; state.weeks={}; state.year=null; undoStack.length=0; state.writeErr="";
+  const r=rink(); state.settings=cleanSettings(r);
+  if(r){
+    const p=new URLSearchParams(location.search); p.set("hall",slug(r.name));
+    history.replaceState(null,"",location.pathname+"?"+p);
+    try{localStorage.setItem("istid.hall",slug(r.name));}catch(e){}
+  }
+  render(); refresh();
 }
 let loadSeq=0;
 async function refresh(){
   if(!sb) return;
-  const key=curKey(),gen=writeGen,seq=++loadSeq;
+  const gen=writeGen,seq=++loadSeq;
   try{
-    const [teams,settings,week,year]=await Promise.all([
+    if(!state.rinkId){ state.rinks=await fetchRinks(); pickRink(); if(!state.rinkId) throw new Error("no rink"); }
+    const key=curKey(),rid=state.rinkId;
+    const [rinks,teams,week,year]=await Promise.all([
+      fetchRinks(),
       sb.from("teams").select("id,name,org,color").then(ok),
-      sb.from("settings").select("open_hours,buffer_min,default_len").eq("id",1).maybeSingle().then(ok),
       fetchWeek(key),
-      sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_exclude:key.slice(1)}).then(ok)
+      sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_rink:rid,p_exclude:key.slice(1)}).then(ok)
     ]);
+    if(rid!==state.rinkId) return; /* hallen byttes medan svaret var på väg */
     state.loadErr=false; state.connected=true;
     /* Svar som hämtades före en egen ändring är inaktuella och kastas */
     if(gen===writeGen&&!pending){
+      state.rinks=rinks; state.settings=cleanSettings(rink());
       state.teams=teams.map(t=>({id:t.id,name:String(t.name||"Namnlöst lag"),org:String(t.org||""),color:safeColor(t.color)}));
-      state.settings=cleanSettings(settings);
       state.weeks[key]=week;
     }
-    if(seq===loadSeq||!state.year||state.year.key!==curKey()) state.year={key,data:year||{teams:{},total:{p:0,m:0}}};
+    if(seq===loadSeq||!state.year||state.year.key!==curKey()) state.year={key,rid,data:year||{}};
   }catch(e){ state.loadErr=true; }
   showNotice(); render();
 }
@@ -419,6 +491,7 @@ function setSave(t){const el=$("#savestate");el.textContent=t;clearTimeout(saveT
 function showNotice(){
   const n=$("#notice");let t="",err=false;
   if(!sb){t="Sidan saknar uppgifter om databasen (config.js).";err=true;}
+  else if(state.linkErr){t="Länken har gått ut eller redan använts. Be om en ny länk av den som bjöd in dig.";err=true;}
   else if(state.writeErr){t=state.writeErr;err=true;}
   else if(state.loadErr){t="Schemat går inte att nå just nu. Det som visas kan vara inaktuellt.";err=true;}
   else if(!state.connected){t="Hämtar schemat…";}
@@ -430,9 +503,10 @@ function diff(oldList,newList){
   return {up:newList.filter(x=>om.get(x.id)!==JSON.stringify(x)),del:oldList.filter(x=>!keep.has(x.id)).map(x=>x.id)};
 }
 function push(table,d,map){
+  const rows=d.up.map(map); /* raderna byggs direkt, innan vald hall hinner bytas */
   enqueue(async()=>{
     if(d.del.length) ok(await sb.from(table).delete().in("id",d.del));
-    if(d.up.length) ok(await sb.from(table).upsert(d.up.map(map)));
+    if(rows.length) ok(await sb.from(table).upsert(rows));
   });
 }
 
@@ -458,7 +532,9 @@ function saveTeams(list){
 }
 function saveSettings(s){
   state.settings=s;
-  enqueue(async()=>ok(await sb.from("settings").upsert({id:1,open_hours:s.open,buffer_min:s.buffer,default_len:s.len})));
+  const rid=state.rinkId,row={open_hours:s.open,buffer_min:s.buffer,default_len:s.len},r=rink();
+  if(r) Object.assign(r,row);
+  enqueue(async()=>ok(await sb.from("rinks").update(row).eq("id",rid)));
   render();
 }
 
@@ -509,6 +585,11 @@ function renderHead(){
   $("#undo").disabled=!undoStack.length;
   $("#copy").disabled=!cur().length;
   $("#newpass").disabled=!state.teams.length;
+  $("#users").hidden=state.role!=="super";
+  $("#rinks").replaceChildren(...state.rinks.map(r=>{
+    const b=h("button",{class:"rinkbtn",type:"button",text:r.name,"aria-pressed":String(r.id===state.rinkId)});
+    b.addEventListener("click",()=>switchRink(r.id)); return b;
+  }));
 }
 function grouped(){
   const g=new Map();
@@ -595,8 +676,8 @@ function renderWarnings(){
   $("#warnlist").replaceChildren(...list.map(i=>h("li",{class:i.k,text:i.t})));
 }
 function renderStats(){
-  const t=$("#stats"),w=isoWeek(state.monday),wk={};
-  const ys=state.year&&state.year.key===curKey()?state.year.data:null;
+  const t=$("#stats"),w=isoWeek(state.monday),wk={},rn=(rink()||{}).name||"Hallen";
+  const ys=state.year&&state.year.key===curKey()&&state.year.rid===state.rinkId?state.year.data:null;
   let wkPass=0,wkMin=0;
   for(const b of cur()){
     const len=b.end-b.start; wkPass++; wkMin+=len;
@@ -604,23 +685,28 @@ function renderStats(){
   }
   const num=(v,f)=>h("td",{class:v?null:"zero",text:v?(f?f(v):String(v)):"–"});
   const wait=()=>h("td",{class:"zero",text:"…"});
+  const get=(o,id)=>o&&o[id]||{p:0,m:0};
   const rows=[];
   for(const [org,list] of grouped()) for(const tm of list){
-    const a=wk[tm.id]||{p:0,m:0},y=ys&&ys.teams&&ys.teams[tm.id]||{p:0,m:0};
+    const a=wk[tm.id]||{p:0,m:0},y=get(ys&&ys.teams,tm.id),o=get(ys&&ys.other_teams,tm.id);
+    const yp=a.p+(+y.p||0),ym=a.m+(+y.m||0);
     rows.push(h("tr",null,h("td",null,h("span",{class:"dot",style:`--c:${tm.color}`}),tm.name),h("td",{text:tm.org||"–"}),
-      num(a.p),num(a.m,hrs),ys?num(a.p+(+y.p||0)):wait(),ys?num(a.m+(+y.m||0),hrs):wait()));
+      num(a.p),num(a.m,hrs),ys?num(yp):wait(),ys?num(ym,hrs):wait(),ys?num(ym+(+o.m||0),hrs):wait()));
   }
-  if(!rows.length) rows.push(h("tr",null,h("td",{colSpan:6,class:"zero",text:"Statistiken fylls på när lag och pass finns inlagda."})));
-  const tot=ys&&ys.total||{p:0,m:0};
+  if(!rows.length) rows.push(h("tr",null,h("td",{colSpan:7,class:"zero",text:"Statistiken fylls på när lag och pass finns inlagda."})));
+  const tot=ys&&ys.total||{p:0,m:0},ot=ys&&ys.other_total||{p:0,m:0};
   t.replaceChildren(
     h("thead",null,
       h("tr",null,h("th",{rowSpan:2,text:"Lag"}),h("th",{rowSpan:2,text:"Förening"}),
-        h("th",{colSpan:2,text:`Vecka ${w.week}`,style:"text-align:center"}),h("th",{colSpan:2,text:`Hela ${w.year}`,style:"text-align:center"})),
-      h("tr",null,h("th",{text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Pass"}),h("th",{text:"Timmar"}))),
+        h("th",{colSpan:2,text:`${rn}, vecka ${w.week}`,style:"text-align:center"}),
+        h("th",{colSpan:2,text:`${rn}, hela ${w.year}`,style:"text-align:center"}),
+        h("th",{text:`Alla hallar ${w.year}`})),
+      h("tr",null,h("th",{text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Timmar"}))),
     h("tbody",null,rows),
     h("tfoot",null,h("tr",null,h("td",{colSpan:2,text:"Bokad is totalt (delade pass räknas en gång)"}),
       h("td",{text:String(wkPass)}),h("td",{text:hrs(wkMin)}),
-      h("td",{text:ys?String(wkPass+(+tot.p||0)):"…"}),h("td",{text:ys?hrs(wkMin+(+tot.m||0)):"…"}))));
+      h("td",{text:ys?String(wkPass+(+tot.p||0)):"…"}),h("td",{text:ys?hrs(wkMin+(+tot.m||0)):"…"}),
+      h("td",{text:ys?hrs(wkMin+(+tot.m||0)+(+ot.m||0)):"…"}))));
 }
 
 /* ---------- Drag and drop ---------- */
@@ -826,53 +912,125 @@ $("#copy").addEventListener("click",async()=>{
 });
 
 /* ---------- Inloggning ---------- */
-let signup=false;
-function loginMode(s){
-  signup=s;
-  $("#dlgLoginH").textContent=s?"Skapa konto":"Logga in";
-  $("#lSubmit").textContent=s?"Skapa konto":"Logga in";
-  $("#lMode").textContent=s?"Har du redan ett konto? Logga in":"Första gången? Skapa konto";
-  $("#lNote").textContent=s?"Välj ett lösenord på minst 8 tecken. Du får ett mejl med en länk som bekräftar adressen."
-    :"För dig som planerar istiderna. Schemat går att läsa utan inloggning.";
-  $("#lPass").autocomplete=s?"new-password":"current-password";
-  $("#lErr").textContent="";
-}
-$("#login").addEventListener("click",()=>{loginMode(false);$("#lPass").value="";$("#dlgLogin").showModal();});
-$("#lMode").addEventListener("click",()=>loginMode(!signup));
+$("#login").addEventListener("click",()=>{$("#lErr").textContent="";$("#lPass").value="";$("#dlgLogin").showModal();});
 $("#logout").addEventListener("click",()=>{if(sb)sb.auth.signOut();});
 $("#loginForm").addEventListener("submit",async e=>{
   e.preventDefault(); if(!sb) return;
-  const email=$("#lEmail").value.trim(),password=$("#lPass").value,err=$("#lErr"),btn=$("#lSubmit");
+  const err=$("#lErr"),btn=$("#lSubmit");
   btn.disabled=true; err.textContent="";
   try{
-    if(signup){
-      const r=await sb.auth.signUp({email,password,options:{emailRedirectTo:location.origin}});
-      if(r.error) err.textContent=r.error.code==="weak_password"?"Lösenordet är för svagt. Välj ett längre.":"Kontot kunde inte skapas. Försök igen om en stund.";
-      else if(r.data.session) $("#dlgLogin").close();
-      else {loginMode(false);$("#lNote").textContent="Vi har skickat ett mejl till "+email+". Klicka på länken i mejlet och logga sedan in här.";}
-    }else{
-      const r=await sb.auth.signInWithPassword({email,password});
-      if(!r.error) $("#dlgLogin").close();
-      else err.textContent=r.error.code==="email_not_confirmed"?"Bekräfta e-postadressen via länken i mejlet först.":"Fel e-post eller lösenord.";
-    }
+    const r=await sb.auth.signInWithPassword({email:$("#lEmail").value.trim(),password:$("#lPass").value});
+    if(!r.error) $("#dlgLogin").close();
+    else err.textContent="Fel e-post eller lösenord.";
   }catch(x){ err.textContent="Det gick inte att nå inloggningen. Försök igen."; }
   btn.disabled=false;
 });
 async function applySession(session){
   state.user=session?session.user:null;
-  let admin=false;
-  if(state.user){ const r=await sb.rpc("am_i_admin"); admin=!r.error&&r.data===true; }
-  state.canEdit=admin; state.writeErr=""; if(!admin) undoStack.length=0;
+  let role=null;
+  if(state.user){ const r=await sb.rpc("my_role"); if(!r.error&&(r.data==="super"||r.data==="editor")) role=r.data; }
+  state.role=role; state.canEdit=!!role; state.writeErr=""; if(!role) undoStack.length=0;
   $("#login").hidden=!!state.user; $("#logout").hidden=!state.user;
   $("#who").textContent=state.user?(state.user.email||""):"";
   showNotice(); render();
 }
+
+/* ---------- Inbjudningslänk och val av lösenord ---------- */
+async function handleLink(){
+  const p=new URLSearchParams(location.search),th=p.get("token_hash"),type=p.get("type");
+  if(!th||!type) return;
+  p.delete("token_hash"); p.delete("type");
+  history.replaceState(null,"",location.pathname+(p.toString()?"?"+p:""));
+  if(type!=="invite"&&type!=="recovery"){state.linkErr=true;showNotice();return;}
+  try{
+    const r=await sb.auth.verifyOtp({token_hash:th,type});
+    if(r.error) state.linkErr=true; else {$("#pwErr").textContent="";$("#pwNew").value="";$("#dlgPw").showModal();}
+  }catch(e){ state.linkErr=true; }
+  showNotice();
+}
+$("#dlgPw").addEventListener("cancel",e=>e.preventDefault());
+$("#pwForm").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const err=$("#pwErr"),btn=$("#pwSubmit"); btn.disabled=true; err.textContent="";
+  try{
+    const r=await sb.auth.updateUser({password:$("#pwNew").value});
+    if(r.error) err.textContent=r.error.code==="weak_password"?"Lösenordet är för svagt. Välj ett längre.":"Lösenordet kunde inte sparas. Försök igen.";
+    else $("#dlgPw").close();
+  }catch(x){ err.textContent="Lösenordet kunde inte sparas. Försök igen."; }
+  btn.disabled=false;
+});
+
+/* ---------- Användare (bara superanvändare) ---------- */
+const UERR={invalid_email:"Skriv en giltig e-postadress.",self:"Du kan inte ta bort dig själv.",
+  super:"En superanvändare kan inte tas bort här.",not_found:"Adressen finns inte i listan.",
+  forbidden:"Bara superanvändare får hantera användare.",unauthorized:"Logga in igen och försök på nytt."};
+async function api(action,extra){
+  const r=await sb.functions.invoke("editors",{body:Object.assign({action},extra||{})});
+  let d=r.data;
+  if(r.error){ try{d=await r.error.context.json();}catch(e){d=null;} if(!d||!d.error) throw new Error("server"); }
+  if(d&&d.error) throw new Error(d.error);
+  return d;
+}
+const uFail=e=>{$("#uErr").textContent=UERR[e&&e.message]||"Det gick inte just nu. Försök igen om en stund.";};
+async function loadUsers(){
+  const ul=$("#uList"); ul.replaceChildren(h("li",null,h("span",{class:"who2",text:"Hämtar…"})));
+  try{
+    const d=await api("list");
+    ul.replaceChildren(...d.editors.map(u=>{
+      const kind=u.role==="super"?"Superanvändare":"Planerare",st=u.active?"har loggat in":"har inte loggat in än";
+      const li=h("li",null,h("div",{class:"who2"},h("b",{text:u.email}),h("span",{text:`${kind}, ${st}${u.me?" (du)":""}`})));
+      if(!u.me){
+        const nl=h("button",{class:"btn",type:"button",text:"Ny länk"});
+        nl.addEventListener("click",()=>makeLink("link",u.email,u.active));
+        li.append(nl);
+      }
+      if(!u.me&&u.role!=="super"){
+        const rm=h("button",{class:"btn danger",type:"button",text:"Ta bort"});
+        rm.addEventListener("click",async()=>{
+          if(!(await confirmBox(`${u.email} kan inte längre ändra schemat och kontot tas bort.`,"Ta bort användare"))) return;
+          $("#uErr").textContent=""; $("#uLinkBox").hidden=true;
+          try{await api("remove",{email:u.email});}catch(e){uFail(e);}
+          loadUsers();
+        });
+        li.append(rm);
+      }
+      return li;
+    }));
+  }catch(e){ ul.replaceChildren(); uFail(e); }
+}
+async function makeLink(action,email,existing){
+  $("#uErr").textContent=""; $("#uLinkBox").hidden=true;
+  try{
+    const d=await api(action,{email});
+    const base=location.origin+location.pathname;
+    const link=`${base}?token_hash=${encodeURIComponent(d.token_hash)}&type=${encodeURIComponent(d.type)}`;
+    const fresh=d.type==="invite";
+    $("#uLinkText").textContent=fresh?`Skicka länken till ${d.email}. Personen öppnar den, väljer ett lösenord och kan sedan ändra schemat.`
+      :`Skicka länken till ${d.email}. Den loggar in personen och låter hen välja ett nytt lösenord.`;
+    $("#uLink").value=link;
+    const body=`Hej!\n\nDu har fått behörighet att ändra istiderna. Öppna länken och välj ett lösenord:\n\n${link}\n\nLänken fungerar en gång och bara en begränsad tid. Säg till om den har slutat fungera, så skickar jag en ny.\n\nSedan loggar du in på ${base} med din e-postadress och lösenordet du valde.`;
+    $("#uMail").href=`mailto:${encodeURIComponent(d.email)}?subject=${encodeURIComponent("Inbjudan till istidsplaneraren")}&body=${encodeURIComponent(body)}`;
+    $("#uLinkBox").hidden=false;
+    if(action==="invite"){$("#uEmail").value="";loadUsers();}
+  }catch(e){ uFail(e); }
+}
+$("#users").addEventListener("click",()=>{$("#uErr").textContent="";$("#uLinkBox").hidden=true;$("#uEmail").value="";$("#dlgUsers").showModal();loadUsers();});
+$("#inviteForm").addEventListener("submit",async e=>{
+  e.preventDefault(); const b=$("#uInvite"); b.disabled=true;
+  await makeLink("invite",$("#uEmail").value.trim()); b.disabled=false;
+});
+$("#uCopy").addEventListener("click",async()=>{
+  const i=$("#uLink"),b=$("#uCopy");
+  try{await navigator.clipboard.writeText(i.value);}catch(e){i.select();document.execCommand("copy");}
+  b.textContent="Kopierad"; setTimeout(()=>{b.textContent="Kopiera länk";},2000);
+});
 
 /* ---------- Start ---------- */
 function start(){
   showNotice(); render();
   if(!sb) return;
   sb.auth.onAuthStateChange((ev,session)=>{setTimeout(()=>applySession(session),0);});
+  handleLink();
   refresh();
   setInterval(()=>{if(document.visibilityState==="visible"&&!busy())refresh();},60000);
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&!busy())refresh();});
