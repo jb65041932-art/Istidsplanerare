@@ -264,7 +264,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
     <ul class="warnlist" id="warnlist"></ul>
   </section>
 
-  <section class="panel">
+  <section class="panel edit-only">
     <h2>Statistik</h2>
     <div class="tablescroll"><table id="stats"></table></div>
   </section>
@@ -473,7 +473,7 @@ async function refresh(){
       fetchRinks(),
       sb.from("teams").select("id,name,org,color").then(ok),
       fetchWeek(key),
-      sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_rink:rid,p_exclude:key.slice(1)}).then(ok)
+      state.canEdit?sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_rink:rid,p_exclude:key.slice(1)}).then(ok):null
     ]);
     if(rid!==state.rinkId) return; /* hallen byttes medan svaret var på väg */
     state.loadErr=false; state.connected=true;
@@ -483,7 +483,7 @@ async function refresh(){
       state.teams=teams.map(t=>({id:t.id,name:String(t.name||"Namnlöst lag"),org:String(t.org||""),color:safeColor(t.color)}));
       state.weeks[key]=week;
     }
-    if(seq===loadSeq||!state.year||state.year.key!==curKey()) state.year={key,rid,data:year||{}};
+    if(year&&(seq===loadSeq||!state.year||state.year.key!==curKey())) state.year={key,rid,data:year};
   }catch(e){ state.loadErr=true; }
   showNotice(); render();
 }
@@ -979,6 +979,7 @@ async function applySession(session){
   $("#login").hidden=!!state.user; $("#logout").hidden=!state.user;
   $("#who").textContent=state.user?(state.user.email||""):"";
   showNotice(); render();
+  if(role) refresh(); /* hämtar statistiken, som bara planerare får */
 }
 
 /* ---------- Inbjudningslänk och val av lösenord ---------- */
