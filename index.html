@@ -44,6 +44,26 @@ h2{font-size:20px;font-weight:600}
 .topbar{background:#16181A;color:#F2F3F4;border-bottom:4px solid #C8102E;
   --surface:#23272B;--line:#3D4349;--ink:#F2F3F4;--muted:#A9B0B7;--bg:#111315;--blue:#C8102E;--on-blue:#FFFFFF}
 .topbar :focus-visible{outline-color:#FFFFFF}
+@media (min-width:761px){.topbar{position:sticky;top:0;z-index:20}}
+[hidden]{display:none!important}
+.viewbar{display:flex;flex-wrap:wrap;gap:8px 20px;align-items:center;margin-bottom:12px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:var(--surface)}
+.seg button{border:0;border-left:1px solid var(--line);background:none;padding:6px 13px;cursor:pointer;font-weight:500}
+.seg button:first-child{border-left:0}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.seg button:focus-visible{outline-offset:-2px}
+.cal.day{grid-template-columns:52px minmax(0,1fr);min-width:0}
+.fhint{display:block;color:var(--muted);font-size:13px;margin-top:4px}
+#dlgCopy{width:min(520px,calc(100vw - 24px))}
+.klist{border:1px solid var(--line);border-radius:6px;max-height:46vh;overflow:auto;margin-bottom:10px}
+.kgrp{border-bottom:1px solid var(--line)}
+.kgrp:last-child{border-bottom:0}
+.kgrp summary{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer}
+.kgrp summary b{font-weight:600}
+.kgrp summary span{color:var(--muted);font-size:13px;margin-left:auto}
+.kgrp ul{list-style:none;margin:0;padding:0 10px 8px 34px}
+.kgrp li label{display:flex;gap:8px;align-items:center;padding:3px 0;font-size:14px;font-variant-numeric:tabular-nums}
+.ktools{display:flex;gap:14px;margin-bottom:8px}
 .wrap{max-width:1500px;margin:0 auto;padding:16px clamp(12px,2.5vw,28px) 40px}
 
 /* Sidhuvud */
@@ -253,6 +273,14 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   </header></div>
 <div class="wrap">
   <div class="notice" id="notice" role="status">Hämtar schemat…</div>
+  <div class="viewbar">
+    <div class="seg" id="fType" role="group" aria-label="Visa typ av pass">
+      <button type="button" data-v="all">Alla</button><button type="button" data-v="traning">Träningar</button><button type="button" data-v="match">Matcher</button><button type="button" data-v="ovrigt">Övrigt</button>
+    </div>
+    <div class="seg desk-only" id="fView" role="group" aria-label="Vy">
+      <button type="button" data-v="week">Vecka</button><button type="button" data-v="day">Dag</button>
+    </div>
+  </div>
 
   <div class="work">
     <aside class="palette" aria-label="Lag och hyresgäster">
@@ -281,14 +309,15 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
 <dialog id="dlgPass" aria-labelledby="dlgPassH">
   <h2 id="dlgPassH">Pass</h2>
   <fieldset class="f"><legend>Lag (kryssa flera om de delar is)</legend><div class="teamlist" id="pTeams"></div></fieldset>
+  <label class="f"><span>Typ</span><select id="pType"><option value="traning">Träning</option><option value="match">Match</option><option value="ovrigt">Övrigt</option></select></label>
+  <label class="f" id="pMsWrap" hidden><span>Matchstart</span><input type="time" id="pMs" step="300"><small class="fhint" id="pMsHint"></small></label>
   <label class="f"><span>Dag</span><select id="pDay"></select></label>
   <div class="row2">
-    <label class="f"><span>Start</span><input type="time" id="pStart" step="300"></label>
-    <label class="f"><span>Slut</span><input type="time" id="pEnd" step="300"></label>
+    <label class="f"><span>Istid från</span><input type="time" id="pStart" step="300"></label>
+    <label class="f"><span>Istid till</span><input type="time" id="pEnd" step="300"></label>
   </div>
   <label class="f" style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="pUntimed"><span style="margin:0">Tiden är inte fastställd än</span></label>
-  <label class="f"><span>Typ</span><select id="pType"><option value="traning">Träning</option><option value="match">Match</option><option value="ovrigt">Övrigt</option></select></label>
-  <label class="f"><span>Anteckning</span><input type="text" id="pNote" maxlength="120" placeholder="Till exempel motståndare och matchstart"></label>
+  <label class="f"><span>Anteckning</span><input type="text" id="pNote" maxlength="120" placeholder="Till exempel motståndare"></label>
   <p class="dlgerr" id="pErr"></p>
   <div class="dlgbtns">
     <button class="btn danger left" id="pDel">Ta bort pass</button>
@@ -303,6 +332,13 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   <label class="f"><span>Förening eller hyresgäst</span><input type="text" id="tOrg" maxlength="40" list="orglist"></label>
   <datalist id="orglist"></datalist>
   <fieldset class="f"><legend>Färg</legend><div class="swatches" id="tColors"></div></fieldset>
+  <fieldset class="f"><legend>Istid vid match</legend>
+    <div class="row2">
+      <label class="f" style="margin:0"><span>Före matchstart (min)</span><input type="number" id="tBefore" min="0" max="240" step="5"></label>
+      <label class="f" style="margin:0"><span>Efter matchstart (min)</span><input type="number" id="tAfter" min="0" max="480" step="5"></label>
+    </div>
+    <small class="fhint">Används när du lägger in en match för laget. Tiden går att justera på varje enskilt pass.</small>
+  </fieldset>
   <p class="dlgerr" id="tErr"></p>
   <div class="dlgbtns">
     <button class="btn danger left" id="tDel">Ta bort lag</button>
@@ -369,6 +405,18 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   <div class="dlgbtns"><button class="btn" data-close>Stäng</button></div>
 </dialog>
 
+<dialog id="dlgCopy" aria-labelledby="dlgCopyH">
+  <h2 id="dlgCopyH">Kopiera till nästa vecka</h2>
+  <p class="dlgnote" id="kNote"></p>
+  <div class="ktools"><button type="button" class="linkbtn" id="kAll">Markera alla</button><button type="button" class="linkbtn" id="kNone">Avmarkera alla</button></div>
+  <div class="klist" id="kList"></div>
+  <p class="dlgerr" id="kErr" role="alert"></p>
+  <div class="dlgbtns">
+    <button class="btn" data-close>Avbryt</button>
+    <button class="btn primary" id="kSave">Kopiera</button>
+  </div>
+</dialog>
+
 <dialog id="dlgConfirm" aria-labelledby="cText">
   <p id="cText" style="margin:0 0 16px"></p>
   <div class="dlgbtns">
@@ -426,7 +474,12 @@ const addDays=(d,n)=>new Date(d.getTime()+n*DAYMS);
 const CFG=window.ISTID_CONFIG||{};
 const sb=(window.supabase&&CFG.url&&CFG.key)?window.supabase.createClient(CFG.url,CFG.key):null;
 const state={monday:mondayOf(new Date()),weeks:{},teams:[],settings:clone(DEF),canEdit:false,connected:false,
-  user:null,role:null,year:null,loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7};
+  user:null,role:null,year:null,loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7,filter:"all",view:"week"};
+try{if(localStorage.getItem("istid.vy")==="day")state.view="day";}catch(e){}
+const mq=window.matchMedia("(max-width:760px)");
+const dayView=()=>state.view==="day"&&!mq.matches;
+const vis=b=>state.filter==="all"||b.type===state.filter;
+const RULE={before:30,after:180};
 const rink=()=>state.rinks.find(r=>r.id===state.rinkId)||null;
 const slug=n=>String(n).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 let drag=null, pendingRender=false, pending=0, writeGen=0, chain=Promise.resolve();
@@ -439,8 +492,8 @@ const timed=()=>cur().filter(b=>!b.untimed);
 /* ---------- Läsa från databasen ---------- */
 const ok=r=>{if(r.error)throw r.error;return r.data;};
 const rowToB=r=>({id:r.id,teams:Array.isArray(r.team_ids)?r.team_ids:[],day:r.day,start:r.start_min,end:r.end_min,
-  type:TYPES[r.type]?r.type:"traning",note:r.note||"",untimed:!!r.untimed});
-const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams,untimed:!!b.untimed});
+  type:TYPES[r.type]?r.type:"traning",note:r.note||"",untimed:!!r.untimed,ms:r.match_start==null?null:r.match_start});
+const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams,untimed:!!b.untimed,match_start:b.ms==null?null:b.ms});
 function cleanSettings(d){
   const s=clone(DEF); if(!d) return s;
   if(Array.isArray(d.open_hours)&&d.open_hours.length===7){
@@ -451,7 +504,7 @@ function cleanSettings(d){
   return s;
 }
 async function fetchWeek(key){
-  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids,untimed").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
+  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids,untimed,match_start").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
 }
 const cleanRinks=d=>(d||[]).map(r=>({id:r.id,name:String(r.name||"Hall"),open_hours:r.open_hours,buffer_min:r.buffer_min,default_len:r.default_len}));
 const fetchRinks=()=>sb.from("rinks").select("id,name,sort,open_hours,buffer_min,default_len").order("sort").then(ok).then(cleanRinks);
@@ -481,7 +534,7 @@ async function refresh(){
     const key=curKey(),rid=state.rinkId;
     const [rinks,teams,week,year]=await Promise.all([
       fetchRinks(),
-      sb.from("teams").select("id,name,org,color").then(ok),
+      sb.from("teams").select("id,name,org,color,match_before,match_after").then(ok),
       fetchWeek(key),
       state.canEdit?sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_rink:rid,p_exclude:key.slice(1)}).then(ok):null
     ]);
@@ -490,7 +543,8 @@ async function refresh(){
     /* Svar som hämtades före en egen ändring är inaktuella och kastas */
     if(gen===writeGen&&!pending){
       state.rinks=rinks; state.settings=cleanSettings(rink());
-      state.teams=teams.map(t=>({id:t.id,name:String(t.name||"Namnlöst lag"),org:String(t.org||""),color:safeColor(t.color)}));
+      state.teams=teams.map(t=>({id:t.id,name:String(t.name||"Namnlöst lag"),org:String(t.org||""),color:safeColor(t.color),
+        before:+t.match_before>=0?+t.match_before:RULE.before,after:+t.match_after>=0?+t.match_after:RULE.after}));
       state.weeks[key]=week;
     }
     if(year&&(seq===loadSeq||!state.year||state.year.key!==curKey())) state.year={key,rid,data:year};
@@ -553,7 +607,7 @@ function undo(){
 }
 function saveTeams(list){
   const d=diff(state.teams,list); state.teams=list;
-  push("teams",d,t=>t); render();
+  push("teams",d,t=>({id:t.id,name:t.name,org:t.org,color:t.color,match_before:t.before,match_after:t.after})); render();
 }
 function saveSettings(s){
   state.settings=s;
@@ -602,11 +656,16 @@ function render(){
   renderHead(); renderPalette(); renderCal(); renderAgenda(); renderWarnings(); renderStats();
 }
 function renderHead(){
-  const m=state.monday,s=addDays(m,6),w=isoWeek(m);
+  const m=state.monday,s=addDays(m,6),w=isoWeek(m),dv=dayView();
   const range=m.getUTCMonth()===s.getUTCMonth()
     ?`${m.getUTCDate()}–${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}`
     :`${m.getUTCDate()} ${MONTHS[m.getUTCMonth()]}–${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}`;
-  $("#weeklabel").textContent=`Vecka ${w.week}, ${range} ${s.getUTCFullYear()}`;
+  const dt=addDays(m,state.day);
+  $("#weeklabel").textContent=dv?`${DAYS[state.day]} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}, vecka ${w.week}`:`Vecka ${w.week}, ${range} ${s.getUTCFullYear()}`;
+  $("#prev").setAttribute("aria-label",dv?"Föregående dag":"Föregående vecka");
+  $("#next").setAttribute("aria-label",dv?"Nästa dag":"Nästa vecka");
+  document.querySelectorAll("#fType button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===state.filter)));
+  document.querySelectorAll("#fView button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.v===state.view)));
   $("#undo").disabled=!undoStack.length;
   $("#copy").disabled=!cur().length;
   $("#newpass").disabled=!state.teams.length;
@@ -650,15 +709,17 @@ function renderCal(){
   const cal=$("#cal"),[a,b]=axisRange(),px=m=>(m-a)*PPM,{flag}=issues();
   const today=mondayOf(new Date()),now=new Date();
   const todayIdx=today.getTime()===state.monday.getTime()?(now.getDay()+6)%7:-1;
+  const days=dayView()?[state.day]:[0,1,2,3,4,5,6];
+  cal.classList.toggle("day",days.length===1);
   cal.replaceChildren(h("div",{class:"corner"}));
-  for(let d=0;d<7;d++){
+  for(const d of days){
     const dt=addDays(state.monday,d);
     cal.append(h("div",{class:"dayhead"+(d===todayIdx?" today":"")},DAYS[d],h("small",{text:`${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`})));
   }
-  const loose=cur().filter(k=>k.untimed);
+  const loose=cur().filter(k=>k.untimed&&vis(k)&&days.includes(k.day));
   if(loose.length){
     cal.append(h("div",{class:"tbdlabel",text:"Tid saknas"}));
-    for(let d=0;d<7;d++) cal.append(h("div",{class:"tbdcell"},loose.filter(k=>k.day===d).map(k=>{
+    for(const d of days) cal.append(h("div",{class:"tbdcell"},loose.filter(k=>k.day===d).map(k=>{
       const el=h(state.canEdit?"button":"div",{class:"tbd",type:state.canEdit?"button":null,style:`--c:${colorOf(k)}`,
         title:`Tid ej fastställd: ${label(k)}${k.note?" – "+k.note:""}`},
         h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),k.note?h("span",{text:k.note}):null);
@@ -669,21 +730,22 @@ function renderCal(){
   const ax=h("div",{class:"axis",style:`height:${px(b)}px`});
   for(let m=a;m<b;m+=60) ax.append(h("span",{text:fmt(m),style:`top:${px(m)}px`}));
   cal.append(ax);
-  for(let d=0;d<7;d++){
+  for(const d of days){
     const col=h("div",{class:"daycol",style:`height:${px(b)}px`}); col.dataset.day=d;
     const [o,c]=state.settings.open[d];
     if(o>a) col.append(h("div",{class:"closed",style:`top:0;height:${px(o)}px`}));
     if(c<b) col.append(h("div",{class:"closed",style:`top:${px(c)}px;height:${px(b)-px(c)}px`}));
-    const list=timed().filter(k=>k.day===d),pos=layoutDay(list);
+    const list=timed().filter(k=>k.day===d&&vis(k)),pos=layoutDay(list);
     for(const k of list){
       const p=pos[k.id],len=k.end-k.start,org=orgOf(k);
       const cls="blk"+(k.type==="match"?" match":"")+(len<40?" short":"")+(flag[k.id]?" "+flag[k.id]:"");
       const el=h("div",{class:cls,tabIndex:0,role:state.canEdit?"button":null,
-        title:`${fmt(k.start)}–${fmt(k.end)} ${label(k)}${k.note?" – "+k.note:""}`,
+        title:`${fmt(k.start)}–${fmt(k.end)} ${label(k)}${k.ms!=null?", matchstart "+fmt(k.ms):""}${k.note?" – "+k.note:""}`,
         "aria-label":`${DAYS[d]} ${fmt(k.start)} till ${fmt(k.end)}, ${label(k)}${k.type==="match"?", match":""}`,
         style:`--c:${colorOf(k)};top:${px(k.start)+1}px;height:${Math.max(len*PPM-2,14)}px;left:calc(${p.c/p.n*100}% + 2px);width:calc(${100/p.n}% - 4px)`},
         h("span",{class:"t",text:`${fmt(k.start)}–${fmt(k.end)}`}),
         h("span",{class:"n",text:(k.type==="match"?"Match: ":"")+label(k)}),
+        k.ms!=null?h("span",{class:"o",text:"Matchstart "+fmt(k.ms)}):null,
         org?h("span",{class:"o",text:org}):null,
         k.note?h("span",{class:"note",text:k.note}):null,
         h("span",{class:"rz"}));
@@ -695,7 +757,7 @@ function renderCal(){
 }
 function agendaItem(k,tap,flag){
   const inner=[k.untimed?h("time",{class:"none",text:"Tid saknas"}):h("time",{text:`${fmt(k.start)}–${fmt(k.end)}`}),
-    h("div",null,h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),k.note?h("span",{text:" "+k.note}):null)];
+    h("div",null,h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),(k.ms!=null||k.note)?h("span",{text:" "+[k.ms!=null?"Matchstart "+fmt(k.ms):"",k.note].filter(Boolean).join(", ")}):null)];
   if(!tap) return h("li",{style:`--c:${colorOf(k)}`},inner);
   const btn=h("button",{class:"agitem",type:"button","aria-label":k.untimed?`Ändra ${label(k)}, tid saknas`:`Ändra ${label(k)}, ${fmt(k.start)} till ${fmt(k.end)}`},inner);
   btn.addEventListener("click",()=>openPass(k));
@@ -704,7 +766,7 @@ function agendaItem(k,tap,flag){
 /* Mobilens vy. Läsare ser hela veckan, planerare en dag i taget med tryckbara pass. */
 function renderAgenda(){
   const box=$("#agenda"); box.replaceChildren();
-  const byDay=d=>cur().filter(k=>k.day===d).sort((x,y)=>(y.untimed-x.untimed)||x.start-y.start);
+  const byDay=d=>cur().filter(k=>k.day===d&&vis(k)).sort((x,y)=>(y.untimed-x.untimed)||x.start-y.start);
   if(state.canEdit){
     const {flag}=issues(),today=mondayOf(new Date()).getTime()===state.monday.getTime()?(new Date().getDay()+6)%7:-1;
     box.append(h("div",{class:"daystrip",role:"group","aria-label":"Välj dag"},DAYS.map((name,d)=>{
@@ -841,11 +903,15 @@ function onUp(){
   const key=curKey(),list=clone(cur());
   if(d.kind==="new"&&d.target){
     list.push({id:uid(),teams:[d.teamId],day:d.target.day,start:d.target.start,end:d.target.end,type:"traning",note:""});
+    if(state.filter!=="all"&&state.filter!=="traning") state.filter="all";
     return setWeek(key,list);
   }
   if(d.kind==="move"&&d.target){
     const b=list.find(k=>k.id===d.b.id);
-    if(b&&(b.day!==d.target.day||b.start!==d.target.start)){Object.assign(b,d.target);return setWeek(key,list);}
+    if(b&&(b.day!==d.target.day||b.start!==d.target.start)){
+      if(b.ms!=null) b.ms=Math.max(0,Math.min(1439,b.ms+d.target.start-b.start)); /* matchstarten följer med passet */
+      Object.assign(b,d.target);return setWeek(key,list);
+    }
   }
   if(d.kind==="resize"&&d.end&&d.end!==d.b.end){
     const b=list.find(k=>k.id===d.b.id); if(b){b.end=d.end;return setWeek(key,list);}
@@ -892,6 +958,7 @@ function openPass(b){
   $("#pDay").value=String(b.day); $("#pStart").value=fmt(b.start); $("#pEnd").value=fmt(Math.min(b.end,1439));
   $("#pType").value=b.type||"traning"; $("#pNote").value=b.note||""; $("#pErr").textContent="";
   $("#pUntimed").checked=!!b.untimed; $("#pStart").disabled=$("#pEnd").disabled=!!b.untimed;
+  $("#pMs").value=b.ms!=null?fmt(b.ms):""; matchUi(false);
   $("#pDel").hidden=isNew; $("#pSave").textContent=isNew?"Lägg till pass":"Spara pass";
   $("#dlgPass").showModal();
   const picked=box.querySelector("input:checked"); if(picked) picked.scrollIntoView({block:"nearest"});
@@ -902,11 +969,27 @@ $("#pSave").addEventListener("click",()=>{
   if(!teams.length) return void($("#pErr").textContent="Välj minst ett lag.");
   const untimed=$("#pUntimed").checked;
   if(!(end>start)) return void($("#pErr").textContent=untimed?"Ange en ungefärlig tid, den används när tiden väl sätts.":"Sluttiden måste vara efter starttiden.");
-  const list=clone(cur()),vals={teams,day:+$("#pDay").value,start,end,type:$("#pType").value,note:$("#pNote").value.trim(),untimed};
+  const type=$("#pType").value,msv=type==="match"?parseT($("#pMs").value):NaN;
+  const list=clone(cur()),vals={teams,day:+$("#pDay").value,start,end,type,note:$("#pNote").value.trim(),untimed,ms:isNaN(msv)?null:msv};
+  if(state.filter!=="all"&&state.filter!==type) state.filter="all";
   const ex=editPass.id&&list.find(k=>k.id===editPass.id);
   if(ex) Object.assign(ex,vals); else list.push(Object.assign({id:uid()},vals));
   $("#dlgPass").close(); setWeek(curKey(),list);
 });
+/* Vid match räknas istiden ut från matchstarten och regeln för det först valda laget */
+function matchUi(recalc){
+  const isMatch=$("#pType").value==="match"; $("#pMsWrap").hidden=!isMatch;
+  if(!isMatch) return;
+  const first=document.querySelector("#pTeams input:checked"),t=first&&team(first.value),r=t||RULE;
+  $("#pMsHint").textContent=`${t?t.name:"Standard"}: istid ${r.before} min före och ${r.after} min efter matchstart. Tiderna nedan går att justera.`;
+  const ms=parseT($("#pMs").value);
+  if(recalc&&!isNaN(ms)){
+    $("#pStart").value=fmt(Math.max(0,ms-r.before)); $("#pEnd").value=fmt(Math.min(1439,ms+r.after));
+  }
+}
+$("#pType").addEventListener("change",()=>matchUi(true));
+$("#pMs").addEventListener("change",()=>matchUi(true));
+$("#pTeams").addEventListener("change",()=>matchUi(true));
 $("#pUntimed").addEventListener("change",e=>{$("#pStart").disabled=$("#pEnd").disabled=e.target.checked;});
 $("#pDel").addEventListener("click",()=>{
   $("#dlgPass").close(); setWeek(curKey(),cur().filter(k=>k.id!==editPass.id));
@@ -926,6 +1009,7 @@ function openTeam(id){
   const cols=COLORS.includes(sel)?COLORS:[...COLORS,sel];
   $("#tColors").replaceChildren(...cols.map((c,i)=>h("label",null,
     h("input",{type:"radio",name:"tcolor",value:c,checked:c===sel,"aria-label":`Färg ${i+1}`}),h("i",{style:`--c:${c}`}))));
+  $("#tBefore").value=editTeam?editTeam.before:RULE.before; $("#tAfter").value=editTeam?editTeam.after:RULE.after;
   $("#tDel").hidden=!editTeam; $("#tSave").textContent=editTeam?"Spara lag":"Lägg till lag";
   $("#dlgTeam").showModal(); $("#tName").focus();
 }
@@ -934,9 +1018,11 @@ $("#tSave").addEventListener("click",()=>{
   const name=$("#tName").value.trim(),org=$("#tOrg").value.trim();
   const color=(document.querySelector("#tColors input:checked")||{}).value||COLORS[0];
   if(!name) return void($("#tErr").textContent="Laget behöver ett namn.");
+  const clamp=(v,d,max)=>{const n=Math.round(+v);return v===""||isNaN(n)?d:Math.min(max,Math.max(0,n));};
+  const before=clamp($("#tBefore").value,RULE.before,240),after=clamp($("#tAfter").value,RULE.after,480);
   const list=clone(state.teams);
-  if(editTeam){const t=list.find(x=>x.id===editTeam.id);if(t)Object.assign(t,{name,org,color});}
-  else list.push({id:uid(),name,org,color});
+  if(editTeam){const t=list.find(x=>x.id===editTeam.id);if(t)Object.assign(t,{name,org,color,before,after});}
+  else list.push({id:uid(),name,org,color,before,after});
   $("#dlgTeam").close(); saveTeams(list);
 });
 $("#tDel").addEventListener("click",async()=>{
@@ -967,18 +1053,77 @@ $("#hSave").addEventListener("click",()=>{
 });
 
 /* ---------- Veckonavigering ---------- */
-const go=n=>{state.monday=addDays(state.monday,n*7);state.writeErr="";render();refresh();};
+function go(n){
+  state.writeErr="";
+  if(dayView()){
+    const d=state.day+n;
+    if(d>=0&&d<=6){state.day=d;render();return;}
+    state.day=(d+7)%7; state.monday=addDays(state.monday,n*7);
+  } else state.monday=addDays(state.monday,n*7);
+  render(); refresh();
+}
+$("#fType").addEventListener("click",e=>{const b=e.target.closest("button");if(!b)return;state.filter=b.dataset.v;render();});
+$("#fView").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b) return;
+  state.view=b.dataset.v; try{localStorage.setItem("istid.vy",state.view);}catch(x){}
+  render();
+});
+mq.addEventListener("change",()=>render());
 $("#prev").addEventListener("click",()=>go(-1));
 $("#next").addEventListener("click",()=>go(1));
 $("#today").addEventListener("click",()=>{state.monday=mondayOf(new Date());state.day=(new Date().getDay()+6)%7;render();refresh();});
 $("#undo").addEventListener("click",undo);
+/* Kopiera valda pass till nästa vecka. Det som redan ligger i nästa vecka rörs inte. */
+let copyTo=null;
+const sig=b=>[b.day,b.start,b.end,b.untimed?1:0,[...b.teams].sort().join()].join("|");
+function copySync(){
+  document.querySelectorAll("#kList .kgrp").forEach(g=>{
+    const ps=[...g.querySelectorAll(".kp")],n=ps.filter(p=>p.checked).length,head=g.querySelector(".kg");
+    head.checked=n===ps.length; head.indeterminate=n>0&&n<ps.length;
+  });
+  const n=document.querySelectorAll("#kList .kp:checked").length;
+  $("#kSave").textContent=n===1?"Kopiera 1 pass":`Kopiera ${n} pass`; $("#kSave").disabled=!n;
+}
 $("#copy").addEventListener("click",async()=>{
-  const src=clone(cur()),next=addDays(state.monday,7),key=keyOf(next),w=isoWeek(next).week;
+  const next=addDays(state.monday,7),key=keyOf(next),w=isoWeek(next).week;
   $("#copy").disabled=true;
   try{ await chain; state.weeks[key]=await fetchWeek(key); }
   catch(e){ state.writeErr="Det gick inte att läsa vecka "+w+". Inget kopierades."; showNotice(); render(); return; }
-  if(state.weeks[key].length&&!(await confirmBox(`Vecka ${w} har redan ${state.weeks[key].length} pass. De ersätts om du kopierar.`,"Ersätt vecka "+w))){render();return;}
-  state.monday=next; setWeek(key,src.map(b=>Object.assign(b,{id:uid()}))); refresh();
+  render();
+  const groups=new Map();
+  for(const b of [...cur()].sort((x,y)=>x.day-y.day||x.start-y.start)){const n=label(b);if(!groups.has(n))groups.set(n,[]);groups.get(n).push(b);}
+  const names=[...groups.keys()].sort((a,b)=>a.localeCompare(b,"sv",{numeric:true}));
+  $("#kList").replaceChildren(...names.map(name=>{
+    const list=groups.get(name);
+    return h("details",{class:"kgrp"},
+      h("summary",null,h("input",{type:"checkbox",class:"kg","aria-label":`Alla pass för ${name}`}),h("b",{text:name}),
+        h("span",{text:list.length===1?"1 pass":`${list.length} pass`})),
+      h("ul",null,list.map(b=>h("li",null,h("label",null,
+        h("input",{type:"checkbox",class:"kp",value:b.id,checked:b.type!=="match"}),
+        `${DAYS[b.day]} ${b.untimed?"utan tid":fmt(b.start)+"–"+fmt(b.end)}, ${TYPES[b.type].toLowerCase()}${b.note?" ("+b.note+")":""}`)))));
+  }));
+  const have=state.weeks[key].length;
+  $("#dlgCopyH").textContent=`Kopiera till vecka ${w}`;
+  $("#kNote").textContent=`Välj vilka lag eller enskilda pass som ska följa med. Matcher är inte förvalda.`
+    +(have?` Vecka ${w} har redan ${have} pass. De ligger kvar, och pass som redan finns där kopieras inte en gång till.`:"");
+  $("#kErr").textContent=""; copyTo={key,next,w}; copySync();
+  $("#dlgCopy").showModal();
+});
+$("#kList").addEventListener("change",e=>{
+  if(e.target.classList.contains("kg")) e.target.closest(".kgrp").querySelectorAll(".kp").forEach(p=>{p.checked=e.target.checked;});
+  copySync();
+});
+const copyAll=v=>{document.querySelectorAll("#kList .kp").forEach(p=>{p.checked=v;});copySync();};
+$("#kAll").addEventListener("click",()=>copyAll(true));
+$("#kNone").addEventListener("click",()=>copyAll(false));
+$("#kSave").addEventListener("click",()=>{
+  if(!copyTo) return;
+  const ids=new Set([...document.querySelectorAll("#kList .kp:checked")].map(p=>p.value));
+  const exist=state.weeks[copyTo.key]||[],have=new Set(exist.map(sig));
+  const add=clone(cur()).filter(b=>ids.has(b.id)&&!have.has(sig(b))).map(b=>Object.assign(b,{id:uid()}));
+  if(!add.length) return void($("#kErr").textContent=`De valda passen finns redan i vecka ${copyTo.w}.`);
+  $("#dlgCopy").close();
+  state.monday=copyTo.next; setWeek(copyTo.key,[...clone(exist),...add]); refresh();
 });
 
 /* ---------- Inloggning ---------- */
