@@ -226,7 +226,7 @@ dialog h2{margin-bottom:14px}
 .f{display:block;margin-bottom:12px}
 .f>span,.f>legend{display:block;font-weight:500;margin-bottom:4px;padding:0}
 fieldset.f{border:0;padding:0;margin:0 0 12px}
-.f input[type=text],.f input[type=time],.f input[type=number],.f select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
+.f input[type=text],.f input[type=time],.f input[type=date],.f input[type=number],.f select{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--bg)}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .teamlist{max-height:170px;overflow:auto;border:1px solid var(--line);border-radius:6px;padding:6px 8px;display:grid;grid-template-columns:1fr 1fr;gap:2px 10px}
 .teamlist label{display:flex;gap:6px;align-items:center;font-size:14px}
@@ -262,6 +262,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
       <button class="btn" id="undo" disabled>Ångra</button>
       <button class="btn desk-only" id="newpass">Nytt pass</button>
       <button class="btn desk-only" id="copy">Kopiera till nästa vecka</button>
+      <button class="btn desk-only" id="export">Exportera till Excel</button>
       <button class="btn desk-only" id="hours">Öppettider</button>
       <button class="btn desk-only" id="users" hidden>Användare</button>
     </div>
@@ -414,6 +415,26 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   <div class="dlgbtns">
     <button class="btn" data-close>Avbryt</button>
     <button class="btn primary" id="kSave">Kopiera</button>
+  </div>
+</dialog>
+
+<dialog id="dlgExport" aria-labelledby="dlgExportH">
+  <h2 id="dlgExportH">Exportera till Excel</h2>
+  <fieldset class="f"><legend>Period</legend>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:6px"><input type="radio" name="xper" value="week" checked><span id="xWeekLbl">Visad vecka</span></label>
+    <label style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><input type="radio" name="xper" value="range"><span>Datumintervall</span></label>
+    <div class="row2">
+      <label class="f" style="margin:0"><span>Från</span><input type="date" id="xFrom"></label>
+      <label class="f" style="margin:0"><span>Till</span><input type="date" id="xTo"></label>
+    </div>
+  </fieldset>
+  <label class="f"><span>Hall</span><select id="xRink"></select></label>
+  <p class="dlgnote">Filen får en flik med alla pass som lista och en flik per vecka med schemat. Vid fler än 30 veckoflikar blir det bara listan.</p>
+  <p class="dlgnote" id="xFilter" hidden></p>
+  <p class="dlgerr" id="xErr" role="alert"></p>
+  <div class="dlgbtns">
+    <button class="btn" data-close>Avbryt</button>
+    <button class="btn primary" id="xSave">Skapa Excel-fil</button>
   </div>
 </dialog>
 
@@ -1124,6 +1145,125 @@ $("#kSave").addEventListener("click",()=>{
   if(!add.length) return void($("#kErr").textContent=`De valda passen finns redan i vecka ${copyTo.w}.`);
   $("#dlgCopy").close();
   state.monday=copyTo.next; setWeek(copyTo.key,[...clone(exist),...add]); refresh();
+});
+
+/* ---------- Export till Excel ---------- */
+const XLS_URL="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js";
+let xlsLoad=null;
+function loadExcel(){
+  if(window.ExcelJS) return Promise.resolve();
+  if(!xlsLoad) xlsLoad=new Promise((res,rej)=>{
+    const el=document.createElement("script"); el.src=XLS_URL; el.onload=()=>res();
+    el.onerror=()=>{xlsLoad=null;rej(new Error("load"));}; document.head.append(el);
+  });
+  return xlsLoad;
+}
+const iso=d=>d.toISOString().slice(0,10);
+const monUTC=d=>addDays(d,-((d.getUTCDay()+6)%7));
+const FILTER_TXT={traning:"träningar",match:"matcher",ovrigt:"övrigt"};
+const xPeriod=()=>document.querySelector('input[name="xper"]:checked').value;
+function xToggle(){$("#xFrom").disabled=$("#xTo").disabled=xPeriod()==="week";}
+document.querySelectorAll('input[name="xper"]').forEach(r=>r.addEventListener("change",xToggle));
+$("#export").addEventListener("click",()=>{
+  $("#xWeekLbl").textContent=`Visad vecka (vecka ${isoWeek(state.monday).week})`;
+  $("#xFrom").value=iso(state.monday); $("#xTo").value=iso(addDays(state.monday,6));
+  document.querySelector('input[name="xper"][value="week"]').checked=true; xToggle();
+  $("#xRink").replaceChildren(h("option",{value:state.rinkId,text:(rink()||{}).name||"Vald hall"}),h("option",{value:"",text:"Alla hallar"}));
+  $("#xFilter").hidden=state.filter==="all";
+  $("#xFilter").textContent=state.filter==="all"?"":`Filtret är aktivt, så bara ${FILTER_TXT[state.filter]} kommer med.`;
+  $("#xErr").textContent=""; $("#dlgExport").showModal();
+});
+function tint(hex){ /* lagfärgen blandad med vitt, som cellbakgrund */
+  const c=safeColor(hex).slice(1),p=i=>Math.round(parseInt(c.slice(i,i+2),16)*.3+255*.7).toString(16).padStart(2,"0");
+  return ("FF"+p(0)+p(2)+p(4)).toUpperCase();
+}
+function buildWorkbook(items,rinkIds,from,to){
+  const wb=new ExcelJS.Workbook(); wb.created=new Date();
+  const HEAD={type:"pattern",pattern:"solid",fgColor:{argb:"FFD9DEE3"}},THIN={style:"thin",color:{argb:"FFB5BCC4"}};
+  const rname=id=>(state.rinks.find(r=>r.id===id)||{}).name||"Hall";
+  const ws=wb.addWorksheet("Lista",{views:[{state:"frozen",ySplit:1}]});
+  ws.columns=[{header:"Datum",width:12,style:{numFmt:"yyyy-mm-dd"}},{header:"Vecka",width:7},{header:"Dag",width:10},
+    {header:"Från",width:8,style:{numFmt:"hh:mm"}},{header:"Till",width:8,style:{numFmt:"hh:mm"}},{header:"Timmar",width:9,style:{numFmt:"0.00"}},
+    {header:"Hall",width:14},{header:"Lag",width:28},{header:"Förening",width:26},{header:"Typ",width:10},
+    {header:"Matchstart",width:11,style:{numFmt:"hh:mm"}},{header:"Anteckning",width:46}];
+  for(const it of items){
+    const b=it.b;
+    ws.addRow([it.date,isoWeek(it.monday).week,DAYS[b.day],b.untimed?"Tid saknas":b.start/1440,b.untimed?null:b.end/1440,
+      b.untimed?null:(b.end-b.start)/60,rname(it.rid),label(b),orgOf(b),TYPES[b.type],b.ms!=null?b.ms/1440:null,b.note]);
+  }
+  ws.getRow(1).eachCell(c=>{c.font={bold:true};c.fill=HEAD;c.alignment={vertical:"middle"};c.border={bottom:THIN};});
+  ws.getRow(1).height=20; ws.autoFilter={from:"A1",to:"L1"};
+
+  const groups=new Map();
+  for(const it of items){const k=it.rid+"|"+iso(it.monday);if(!groups.has(k))groups.set(k,{rid:it.rid,monday:it.monday,list:[]});groups.get(k).list.push(it.b);}
+  if(groups.size<=30){
+    const order=id=>state.rinks.findIndex(r=>r.id===id),used=new Set();
+    for(const g of [...groups.values()].sort((a,b)=>order(a.rid)-order(b.rid)||a.monday-b.monday)){
+      const w=isoWeek(g.monday),sun=addDays(g.monday,6);
+      let name=(rinkIds.size>1?`v${w.week} ${rname(g.rid)}`:`Vecka ${w.week}`).replace(/[\[\]:*?\/\\]/g," ").slice(0,28);
+      for(let n=2;used.has(name);n++) name=name.replace(/ \(\d+\)$/,"")+` (${n})`;
+      used.add(name);
+      const sh=wb.addWorksheet(name,{pageSetup:{orientation:"landscape",paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
+      sh.columns=DAYS.map(()=>({width:25}));
+      sh.mergeCells(1,1,1,7);
+      sh.getCell(1,1).value=`${rname(g.rid)}, vecka ${w.week}, ${g.monday.getUTCDate()} ${MONTHS[g.monday.getUTCMonth()]}–${sun.getUTCDate()} ${MONTHS[sun.getUTCMonth()]} ${sun.getUTCFullYear()}`;
+      sh.getCell(1,1).font={bold:true,size:14}; sh.getRow(1).height=24;
+      const heights={};
+      DAYS.forEach((dn,d)=>{
+        const dt=addDays(g.monday,d),hc=sh.getCell(3,d+1);
+        hc.value=`${dn} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`; hc.font={bold:true}; hc.fill=HEAD;
+        hc.alignment={horizontal:"center",vertical:"middle"}; hc.border={top:THIN,bottom:THIN,left:THIN,right:THIN};
+        g.list.filter(b=>b.day===d).sort((x,y)=>(y.untimed-x.untimed)||x.start-y.start).forEach((b,i)=>{
+          const lines=[b.untimed?"Tid saknas":`${fmt(b.start)}–${fmt(b.end)}`,(b.type==="match"?"Match: ":"")+label(b)];
+          if(b.ms!=null) lines.push("Matchstart "+fmt(b.ms));
+          if(b.note) lines.push(b.note);
+          const c=sh.getCell(4+i,d+1); c.value=lines.join("\n");
+          c.alignment={wrapText:true,vertical:"top"}; c.border={top:THIN,bottom:THIN,left:THIN,right:THIN};
+          c.fill={type:"pattern",pattern:"solid",fgColor:{argb:tint(colorOf(b))}};
+          const extra=lines.reduce((n,l)=>n+Math.floor(l.length/27),0);
+          heights[4+i]=Math.max(heights[4+i]||0,lines.length+extra);
+        });
+      });
+      sh.getRow(3).height=20;
+      for(const r in heights) sh.getRow(+r).height=heights[r]*15+4;
+    }
+  }
+  return wb;
+}
+$("#xSave").addEventListener("click",async()=>{
+  const err=$("#xErr"),btn=$("#xSave"); err.textContent="";
+  let from=state.monday,to=addDays(state.monday,6);
+  if(xPeriod()==="range"){
+    from=new Date($("#xFrom").value+"T00:00:00Z"); to=new Date($("#xTo").value+"T00:00:00Z");
+    if(isNaN(from)||isNaN(to)) return void(err.textContent="Fyll i både från och till.");
+    if(to<from) return void(err.textContent="Slutdatumet kan inte ligga före startdatumet.");
+    if((to-from)/DAYMS>400) return void(err.textContent="Välj en period på högst ett år.");
+  }
+  const rid=$("#xRink").value,filter=state.filter;
+  btn.disabled=true; btn.textContent="Skapar filen…";
+  try{
+    await chain; /* väntar in ändringar som håller på att sparas */
+    const rows=[];
+    for(let p=0;;p+=1000){
+      let q=sb.from("bookings").select("id,rink_id,week_start,day,start_min,end_min,type,note,team_ids,untimed,match_start")
+        .gte("week_start",iso(monUTC(from))).lte("week_start",iso(monUTC(to)));
+      if(rid) q=q.eq("rink_id",rid);
+      const d=ok(await q.order("week_start").order("day").order("start_min").order("id").range(p,p+999));
+      rows.push(...d); if(d.length<1000) break;
+    }
+    const order=id=>state.rinks.findIndex(r=>r.id===id);
+    const items=rows.map(r=>{const monday=new Date(r.week_start+"T00:00:00Z");return {rid:r.rink_id,monday,date:addDays(monday,r.day),b:rowToB(r)};})
+      .filter(it=>it.date>=from&&it.date<=to&&(filter==="all"||it.b.type===filter))
+      .sort((a,b)=>a.date-b.date||(b.b.untimed-a.b.untimed)||a.b.start-b.b.start||order(a.rid)-order(b.rid));
+    if(!items.length){err.textContent="Det finns inga pass i den perioden.";return;}
+    await loadExcel();
+    const wb=buildWorkbook(items,new Set(items.map(i=>i.rid)),from,to);
+    const blob=new Blob([await wb.xlsx.writeBuffer()],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a=h("a",{href:URL.createObjectURL(blob),download:`istider_${iso(from)}_${iso(to)}.xlsx`});
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+    $("#dlgExport").close();
+  }catch(e){ err.textContent="Filen kunde inte skapas. Kontrollera uppkopplingen och försök igen."; }
+  finally{ btn.disabled=false; btn.textContent="Skapa Excel-fil"; }
 });
 
 /* ---------- Inloggning ---------- */
