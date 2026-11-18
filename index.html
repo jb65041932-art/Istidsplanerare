@@ -429,7 +429,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
     </div>
   </fieldset>
   <label class="f"><span>Hall</span><select id="xRink"></select></label>
-  <p class="dlgnote">Filen får en flik med alla pass som lista och en flik per vecka med schemat. Vid fler än 30 veckoflikar blir det bara listan.</p>
+  <p class="dlgnote">Filen får en flik med alla pass som lista och en flik per vecka uppställd som schemat, med tiominutersrader. Vid fler än 30 veckoflikar blir det bara listan.</p>
   <p class="dlgnote" id="xFilter" hidden></p>
   <p class="dlgerr" id="xErr" role="alert"></p>
   <div class="dlgbtns">
@@ -1173,8 +1173,9 @@ $("#export").addEventListener("click",()=>{
   $("#xFilter").textContent=state.filter==="all"?"":`Filtret är aktivt, så bara ${FILTER_TXT[state.filter]} kommer med.`;
   $("#xErr").textContent=""; $("#dlgExport").showModal();
 });
-function tint(hex){ /* lagfärgen blandad med vitt, som cellbakgrund */
-  const c=safeColor(hex).slice(1),p=i=>Math.round(parseInt(c.slice(i,i+2),16)*.3+255*.7).toString(16).padStart(2,"0");
+function tint(hex,k){ /* lagfärgen blandad med vitt, som cellbakgrund */
+  k=k||.3;
+  const c=safeColor(hex).slice(1),p=i=>Math.round(parseInt(c.slice(i,i+2),16)*k+255*(1-k)).toString(16).padStart(2,"0");
   return ("FF"+p(0)+p(2)+p(4)).toUpperCase();
 }
 function buildWorkbook(items,rinkIds,from,to){
@@ -1194,38 +1195,80 @@ function buildWorkbook(items,rinkIds,from,to){
   ws.getRow(1).eachCell(c=>{c.font={bold:true};c.fill=HEAD;c.alignment={vertical:"middle"};c.border={bottom:THIN};});
   ws.getRow(1).height=20; ws.autoFilter={from:"A1",to:"L1"};
 
+  /* En flik per vecka och hall, uppställd som schemat: tid nedåt i tiominutersrader, dagar som kolumner */
   const groups=new Map();
   for(const it of items){const k=it.rid+"|"+iso(it.monday);if(!groups.has(k))groups.set(k,{rid:it.rid,monday:it.monday,list:[]});groups.get(k).list.push(it.b);}
   if(groups.size<=30){
-    const order=id=>state.rinks.findIndex(r=>r.id===id),used=new Set();
+    const STEP=10,HAIR={style:"hair",color:{argb:"FFB5BCC4"}},order=id=>state.rinks.findIndex(r=>r.id===id),used=new Set();
     for(const g of [...groups.values()].sort((a,b)=>order(a.rid)-order(b.rid)||a.monday-b.monday)){
       const w=isoWeek(g.monday),sun=addDays(g.monday,6);
       let name=(rinkIds.size>1?`v${w.week} ${rname(g.rid)}`:`Vecka ${w.week}`).replace(/[\[\]:*?\/\\]/g," ").slice(0,28);
       for(let n=2;used.has(name);n++) name=name.replace(/ \(\d+\)$/,"")+` (${n})`;
       used.add(name);
-      const sh=wb.addWorksheet(name,{pageSetup:{orientation:"landscape",paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
-      sh.columns=DAYS.map(()=>({width:25}));
-      sh.mergeCells(1,1,1,7);
-      sh.getCell(1,1).value=`${rname(g.rid)}, vecka ${w.week}, ${g.monday.getUTCDate()} ${MONTHS[g.monday.getUTCMonth()]}–${sun.getUTCDate()} ${MONTHS[sun.getUTCMonth()]} ${sun.getUTCFullYear()}`;
-      sh.getCell(1,1).font={bold:true,size:14}; sh.getRow(1).height=24;
-      const heights={};
-      DAYS.forEach((dn,d)=>{
-        const dt=addDays(g.monday,d),hc=sh.getCell(3,d+1);
-        hc.value=`${dn} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`; hc.font={bold:true}; hc.fill=HEAD;
-        hc.alignment={horizontal:"center",vertical:"middle"}; hc.border={top:THIN,bottom:THIN,left:THIN,right:THIN};
-        g.list.filter(b=>b.day===d).sort((x,y)=>(y.untimed-x.untimed)||x.start-y.start).forEach((b,i)=>{
-          const lines=[b.untimed?"Tid saknas":`${fmt(b.start)}–${fmt(b.end)}`,(b.type==="match"?"Match: ":"")+label(b)];
-          if(b.ms!=null) lines.push("Matchstart "+fmt(b.ms));
-          if(b.note) lines.push(b.note);
-          const c=sh.getCell(4+i,d+1); c.value=lines.join("\n");
-          c.alignment={wrapText:true,vertical:"top"}; c.border={top:THIN,bottom:THIN,left:THIN,right:THIN};
-          c.fill={type:"pattern",pattern:"solid",fgColor:{argb:tint(colorOf(b))}};
-          const extra=lines.reduce((n,l)=>n+Math.floor(l.length/27),0);
-          heights[4+i]=Math.max(heights[4+i]||0,lines.length+extra);
+      const timedL=g.list.filter(b=>!b.untimed),loose=g.list.filter(b=>b.untimed);
+      const open=cleanSettings(state.rinks.find(r=>r.id===g.rid)).open;
+      let a=Math.min(...open.map(o=>o[0]),...timedL.map(b=>b.start)),z=Math.max(...open.map(o=>o[1]),...timedL.map(b=>b.end));
+      a=Math.floor(a/60)*60; z=Math.ceil(z/60)*60;
+      const nRows=(z-a)/STEP,HEADR=3,LOOSER=loose.length?4:0,TOP=LOOSER?5:4;
+      /* Passen avrundas till raderna. Överlappande pass får var sin delkolumn under dagen. */
+      const days=DAYS.map((dn,d)=>{
+        const bl=timedL.filter(b=>b.day===d).map(b=>{
+          const r0=Math.max(0,Math.min(nRows-1,Math.round((b.start-a)/STEP))),r1=Math.max(r0+1,Math.min(nRows,Math.round((b.end-a)/STEP)));
+          return {id:b.id,start:r0,end:r1,b};
         });
+        const pos=layoutDay(bl);
+        return {bl,pos,n:Math.max(1,...bl.map(x=>pos[x.id].n))};
       });
-      sh.getRow(3).height=20;
-      for(const r in heights) sh.getRow(+r).height=heights[r]*15+4;
+      let col=2; for(const dy of days){dy.c0=col;col+=dy.n;}
+      const lastCol=col-1;
+      const sh=wb.addWorksheet(name,{views:[{state:"frozen",xSplit:1,ySplit:TOP-1}],
+        pageSetup:{orientation:"portrait",paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:1,horizontalCentered:true,margins:{left:.3,right:.3,top:.3,bottom:.3,header:.1,footer:.1}}});
+      sh.getColumn(1).width=7;
+      for(const dy of days) for(let k=0;k<dy.n;k++) sh.getColumn(dy.c0+k).width=Math.max(9,24/dy.n);
+      sh.mergeCells(1,1,1,lastCol);
+      sh.getCell(1,1).value=`${rname(g.rid)}, vecka ${w.week}, ${g.monday.getUTCDate()} ${MONTHS[g.monday.getUTCMonth()]}–${sun.getUTCDate()} ${MONTHS[sun.getUTCMonth()]} ${sun.getUTCFullYear()}`;
+      sh.getCell(1,1).font={bold:true,size:14}; sh.getRow(1).height=24; sh.getRow(HEADR).height=20;
+      /* Rutnätet: en linje per hel timme och en per dag */
+      for(let r=0;r<nRows;r++){
+        const row=sh.getRow(TOP+r); row.height=13;
+        const hour=(a+r*STEP)%60===0;
+        if(hour){const t=row.getCell(1);t.value=fmt(a+r*STEP);t.font={size:9,color:{argb:"FF5C6369"}};t.alignment={vertical:"top",horizontal:"right"};t.border={top:HAIR};}
+        for(const dy of days) for(let k=0;k<dy.n;k++){
+          const bd={}; if(hour) bd.top=HAIR; if(k===0) bd.left=THIN; if(dy.c0+k===lastCol) bd.right=THIN; if(r===nRows-1) bd.bottom=THIN;
+          row.getCell(dy.c0+k).border=bd;
+        }
+      }
+      const BOX={top:THIN,bottom:THIN,left:THIN,right:THIN};
+      days.forEach((dy,d)=>{
+        const dt=addDays(g.monday,d),hc=sh.getCell(HEADR,dy.c0);
+        hc.value=`${DAYS[d]} ${dt.getUTCDate()} ${MONTHS[dt.getUTCMonth()]}`; hc.font={bold:true}; hc.fill=HEAD;
+        hc.alignment={horizontal:"center",vertical:"middle"}; hc.border=BOX;
+        if(dy.n>1) sh.mergeCells(HEADR,dy.c0,HEADR,dy.c0+dy.n-1);
+        if(LOOSER){
+          const lc=sh.getCell(LOOSER,dy.c0),mine=loose.filter(b=>b.day===d);
+          lc.value=mine.map(b=>"Tid saknas: "+(b.type==="match"?"Match: ":"")+label(b)+(b.note?"\n"+b.note:"")).join("\n")||null;
+          lc.font={size:9,italic:true}; lc.alignment={wrapText:true,vertical:"top"}; lc.border=BOX;
+          if(dy.n>1) sh.mergeCells(LOOSER,dy.c0,LOOSER,dy.c0+dy.n-1);
+        }
+        for(const x of dy.bl){
+          const b=x.b,p=dy.pos[x.id],rows=x.end-x.start;
+          /* Ett ensamt pass tar hela dagens bredd, annars en delkolumn (den sista tar resten) */
+          const c1=dy.c0+p.c,c2=p.n===1?dy.c0+dy.n-1:(p.c===p.n-1?dy.c0+dy.n-1:c1);
+          const title=(b.type==="match"?"Match: ":"")+label(b),time=`${fmt(b.start)}–${fmt(b.end)}`;
+          const lines=rows<=1?[time+" "+title]:[time,title];
+          if(rows>2&&b.ms!=null) lines.push("Matchstart "+fmt(b.ms));
+          if(rows>3&&b.note) lines.push(b.note);
+          const c=sh.getCell(TOP+x.start,c1);
+          c.value={richText:lines.map((l,i)=>({text:l+(i<lines.length-1?"\n":""),font:{size:i===1?10:9,bold:i===1||rows<=1}}))};
+          c.alignment={wrapText:true,vertical:"top"}; c.border=BOX;
+          c.fill={type:"pattern",pattern:"solid",fgColor:{argb:tint(colorOf(b),b.type==="match"?.55:.3)}};
+          if(rows>1||c2>c1) sh.mergeCells(TOP+x.start,c1,TOP+x.end-1,c2);
+        }
+      });
+      if(LOOSER){
+        const n=Math.max(1,...days.map((dy,d)=>loose.filter(b=>b.day===d).reduce((s,b)=>s+1+(b.note?1+Math.floor(b.note.length/30):0),0)));
+        sh.getRow(LOOSER).height=n*13+4;
+      }
     }
   }
   return wb;
