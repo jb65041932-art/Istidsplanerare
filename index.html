@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Istidsplanerare</title>
+<title>Istider</title>
 <meta name="theme-color" content="#16181A">
 <meta name="description" content="Veckoschema för istiderna i ishallen.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%92%3C/text%3E%3C/svg%3E">
@@ -109,7 +109,7 @@ h2{font-size:20px;font-weight:600}
 .notice:empty{display:none}
 
 /* Layout */
-.work{display:grid;grid-template-columns:230px minmax(0,1fr);gap:18px;align-items:start}
+.work{display:grid;grid-template-columns:minmax(0,1fr);gap:0 16px;align-items:start}
 body.ro .work{grid-template-columns:minmax(0,1fr)}
 body.ro .palette,body.ro .edit-only{display:none}
 
@@ -249,12 +249,45 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
 .dlgbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .dlgbtns .left{margin-right:auto}
 @media (prefers-reduced-motion:no-preference){.btn,.chip{transition:border-color .12s}}
+
+/* Smal topplist */
+.top{padding:7px clamp(12px,2.5vw,28px);gap:6px 20px}
+.brand{display:flex;align-items:center;gap:14px}
+.brand h1{font-size:22px}
+.rinks{margin-top:0}
+.weeknav .label{font-size:18px;min-width:10.5em}
+.topbar .btn{padding:5px 11px}
+.topbar .btn.icon{padding:5px 10px}
+.topbar{border-bottom-width:3px}
+
+/* Verktyg och visning. Läsare och mobil: en rad ovanför schemat. Planerare på dator: fast vänsterspalt. */
+.side{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;margin-bottom:12px;min-width:0}
+.side .viewbar{margin:0}
+.tools{display:flex;gap:8px;align-items:center}
+.savestate{min-width:0}
+.teams .hint{color:var(--muted);font-size:13px;margin:8px 0 10px}
+.teams #newteam{width:100%;margin-top:14px}
+.blk.drop,.tbd.drop{outline:3px solid var(--ink);outline-offset:-3px;z-index:7}
+@media (min-width:761px){
+  body:not(.ro) .work{grid-template-columns:204px minmax(0,1fr)}
+  body:not(.ro) .side{position:sticky;top:calc(var(--topH,52px) + 12px);max-height:calc(100vh - var(--topH,52px) - 24px);overflow-y:auto;
+    flex-direction:column;flex-wrap:nowrap;align-items:stretch;gap:14px;margin:0;
+    background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px}
+  body:not(.ro) .tools{flex-direction:column;align-items:stretch;gap:5px}
+  body:not(.ro) .tools .btn{text-align:left;padding:6px 10px}
+  body:not(.ro) .side .viewbar{flex-direction:column;align-items:stretch;gap:8px}
+  body:not(.ro) .side .seg{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+  body:not(.ro) .side .seg button{border:0;background:var(--surface);padding:6px 4px}
+  body:not(.ro) .side .seg button[aria-pressed="true"]{background:var(--ink)}
+  body:not(.ro) .teams #teamsToggle{width:100%;text-align:left}
+  body:not(.ro) .savestate{text-align:left;min-height:1.3em}
+}
 </style>
 </head>
 <body class="ro">
-<div class="topbar"><header class="top">
+<div class="topbar" id="topbar"><header class="top">
     <div class="brand">
-      <h1>Istidsplanerare</h1>
+      <h1>Istider</h1>
       <div class="rinks" id="rinks" role="group" aria-label="Välj hall"></div>
     </div>
     <div class="weeknav">
@@ -262,15 +295,6 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
       <div class="label" id="weeklabel" aria-live="polite"></div>
       <button class="btn icon" id="next" aria-label="Nästa vecka">›</button>
       <button class="btn" id="today">Idag</button>
-    </div>
-    <div class="actions edit-only">
-      <span class="savestate" id="savestate" aria-live="polite"></span>
-      <button class="btn" id="undo" disabled>Ångra</button>
-      <button class="btn desk-only" id="newpass">Nytt pass</button>
-      <button class="btn desk-only" id="copy">Kopiera till nästa vecka</button>
-      <button class="btn desk-only" id="export">Exportera till Excel</button>
-      <button class="btn desk-only" id="hours">Öppettider</button>
-      <button class="btn desk-only" id="users" hidden>Användare</button>
     </div>
     <div class="auth">
       <span class="who" id="who"></span>
@@ -280,21 +304,34 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   </header></div>
 <div class="wrap">
   <div class="notice" id="notice" role="status">Hämtar schemat…</div>
-  <div class="viewbar">
-    <div class="seg" id="fType" role="group" aria-label="Visa typ av pass">
-      <button type="button" data-v="all">Alla</button><button type="button" data-v="traning">Träningar</button><button type="button" data-v="match">Matcher</button><button type="button" data-v="ovrigt">Övrigt</button>
-    </div>
-    <div class="seg desk-only" id="fView" role="group" aria-label="Vy">
-      <button type="button" data-v="week">Vecka</button><button type="button" data-v="day">Dag</button>
-    </div>
-  </div>
 
   <div class="work">
-    <aside class="palette" aria-label="Lag och hyresgäster">
-      <h2>Lag och hyresgäster</h2>
-      <p class="hint">Dra ett lag till schemat. Klicka på laget för att ändra det. En prick på ett pass betyder att det har matchstart eller anteckning: håll muspekaren över passet eller klicka på det.</p>
-      <div id="chips"></div>
-      <button class="btn" id="newteam">Nytt lag</button>
+    <aside class="side" aria-label="Verktyg och visning">
+      <div class="tools edit-only">
+        <button class="btn" id="undo" disabled>Ångra</button>
+        <button class="btn desk-only" id="newpass">Nytt pass</button>
+        <button class="btn desk-only" id="copy">Kopiera vecka</button>
+        <button class="btn desk-only" id="export">Exportera Excel</button>
+        <button class="btn desk-only" id="hours">Öppettider</button>
+        <button class="btn desk-only" id="users" hidden>Användare</button>
+        <span class="savestate" id="savestate" aria-live="polite"></span>
+      </div>
+      <div class="viewbar">
+        <div class="seg" id="fType" role="group" aria-label="Visa typ av pass">
+          <button type="button" data-v="all">Alla</button><button type="button" data-v="traning">Träningar</button><button type="button" data-v="match">Matcher</button><button type="button" data-v="ovrigt">Övrigt</button>
+        </div>
+        <div class="seg desk-only" id="fView" role="group" aria-label="Vy">
+          <button type="button" data-v="week">Vecka</button><button type="button" data-v="day">Dag</button>
+        </div>
+      </div>
+      <div class="teams edit-only desk-only">
+        <button class="btn" id="teamsToggle" aria-expanded="true" aria-controls="teamsPanel">Dölj lag</button>
+        <div id="teamsPanel">
+          <p class="hint">Dra ett lag till schemat. Släpp det på ett befintligt pass för att dela isen. Klicka på laget för att ändra det.</p>
+          <div id="chips"></div>
+          <button class="btn" id="newteam">Nytt lag</button>
+        </div>
+      </div>
     </aside>
     <div class="calbox">
       <div class="calscroll"><div class="cal" id="cal"></div></div>
@@ -679,6 +716,7 @@ function render(){
   renderHead(); renderPalette(); renderCal(); renderAgenda(); renderWarnings(); renderStats();
 }
 function renderHead(){
+  topH();
   const m=state.monday,s=addDays(m,6),w=isoWeek(m),dv=dayView();
   const range=m.getUTCMonth()===s.getUTCMonth()
     ?`${m.getUTCDate()}–${s.getUTCDate()} ${MONTHS[s.getUTCMonth()]}`
@@ -747,6 +785,7 @@ function renderCal(){
         title:`Tid ej fastställd: ${label(k)}${k.note?" – "+k.note:""}`},
         h("b",{text:(k.type==="match"?"Match: ":"")+label(k)}),k.note?h("span",{text:k.note}):null);
       if(state.canEdit) el.addEventListener("click",()=>openPass(k));
+      el.dataset.id=k.id;
       return el;
     })));
   }
@@ -893,6 +932,18 @@ function onMove(e){
     return;
   }
   if(drag.ghost){drag.ghost.style.left=e.clientX+"px";drag.ghost.style.top=e.clientY+"px";}
+  if(drag.kind==="new"){
+    const under=document.elementFromPoint(e.clientX,e.clientY),hit=under&&under.closest?under.closest(".blk,.tbd"):null;
+    const tb=hit&&cur().find(k=>k.id===hit.dataset.id);
+    if(drag.over&&drag.over!==hit) drag.over.classList.remove("drop");
+    drag.over=null; drag.merge=null;
+    if(tb){
+      if(drag.prev){drag.prev.remove();drag.prev=null;}
+      drag.target=null;
+      if(!tb.teams.includes(drag.teamId)){drag.over=hit;drag.merge=tb.id;hit.classList.add("drop");}
+      return; /* laget finns redan på passet: inget händer om man släpper */
+    }
+  }
   const col=colAt(e.clientX,e.clientY);
   if(drag.prev&&drag.prev.parentElement!==col){drag.prev.remove();drag.prev=null;}
   drag.target=null;
@@ -909,7 +960,7 @@ function endDrag(){
   document.removeEventListener("pointermove",onMove);
   document.removeEventListener("pointerup",onUp);
   document.removeEventListener("pointercancel",onCancel);
-  if(drag){if(drag.ghost)drag.ghost.remove();if(drag.prev)drag.prev.remove();if(drag.el)drag.el.classList.remove("moving");}
+  if(drag){if(drag.ghost)drag.ghost.remove();if(drag.prev)drag.prev.remove();if(drag.el)drag.el.classList.remove("moving");if(drag.over)drag.over.classList.remove("drop");}
   const d=drag; drag=null; return d;
 }
 function onCancel(){endDrag();render();}
@@ -921,6 +972,10 @@ function onUp(){
     return;
   }
   const key=curKey(),list=clone(cur());
+  if(d.kind==="new"&&d.merge){
+    const b=list.find(k=>k.id===d.merge);
+    if(b&&!b.teams.includes(d.teamId)){b.teams.push(d.teamId);return setWeek(key,list);}
+  }
   if(d.kind==="new"&&d.target){
     list.push({id:uid(),teams:[d.teamId],day:d.target.day,start:d.target.start,end:d.target.end,type:"traning",note:""});
     if(state.filter!=="all"&&state.filter!=="traning") state.filter="all";
@@ -1034,6 +1089,15 @@ function openTeam(id){
   $("#dlgTeam").showModal(); $("#tName").focus();
 }
 $("#newteam").addEventListener("click",()=>openTeam(null));
+let teamsOpen=true; try{teamsOpen=localStorage.getItem("istid.lag")!=="0";}catch(e){}
+function teamsUi(){
+  $("#teamsPanel").hidden=!teamsOpen; $("#teamsToggle").setAttribute("aria-expanded",String(teamsOpen));
+  $("#teamsToggle").textContent=teamsOpen?"Dölj lag":"Visa lag";
+}
+$("#teamsToggle").addEventListener("click",()=>{teamsOpen=!teamsOpen;try{localStorage.setItem("istid.lag",teamsOpen?"1":"0");}catch(e){}teamsUi();});
+teamsUi();
+const topH=()=>document.documentElement.style.setProperty("--topH",$("#topbar").offsetHeight+"px");
+window.addEventListener("resize",topH);
 $("#tSave").addEventListener("click",()=>{
   const name=$("#tName").value.trim(),org=$("#tOrg").value.trim();
   const color=(document.querySelector("#tColors input:checked")||{}).value||COLORS[0];
