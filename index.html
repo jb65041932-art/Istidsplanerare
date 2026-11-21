@@ -282,6 +282,18 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
   body:not(.ro) .teams #teamsToggle{width:100%;text-align:left}
   body:not(.ro) .savestate{text-align:left;min-height:1.3em}
 }
+
+/* Statistik */
+.statbar{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:end;margin:8px 0}
+.statbar label span{display:block;font-size:13px;color:var(--muted);margin-bottom:2px}
+.statbar input,.statbar select{padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+.statnote{color:var(--muted);font-size:14px;margin:0 0 10px;max-width:75ch}
+.stath{font:600 16px/1.2 var(--cond);margin:16px 0 6px}
+#stats{min-width:1080px}
+#stats th.grp{text-align:center;border-left:1px solid var(--line)}
+#stats td.sep,#stats th.sep{border-left:1px solid var(--line)}
+td.under{color:var(--amber);font-weight:600}
+#statsOrg th:nth-child(2),#statsOrg td:nth-child(2){text-align:right}
 </style>
 </head>
 <body class="ro">
@@ -344,9 +356,20 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
     <ul class="warnlist" id="warnlist"></ul>
   </section>
 
-  <section class="panel edit-only">
+  <section class="panel edit-only" id="statpanel">
     <h2>Statistik</h2>
+    <div class="statbar">
+      <label><span>Från</span><input type="date" id="sFrom"></label>
+      <label><span>Till</span><input type="date" id="sTo"></label>
+      <label><span>Hall</span><select id="sRink"></select></label>
+      <button class="btn" id="sSeason">Hela säsongen</button>
+      <button class="btn" id="sExport">Exportera statistik</button>
+    </div>
+    <p class="statnote" id="sNote"></p>
+    <h3 class="stath">Per lag</h3>
     <div class="tablescroll"><table id="stats"></table></div>
+    <h3 class="stath">Per förening</h3>
+    <div class="tablescroll"><table id="statsOrg"></table></div>
   </section>
 </div>
 
@@ -383,6 +406,8 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
     </div>
     <small class="fhint">Används när du lägger in en match för laget. Tiden går att justera på varje enskilt pass.</small>
   </fieldset>
+  <label class="f"><span>Mål: träningspass per vecka</span><input type="number" id="tGoal" min="0" max="20" step="0.5" placeholder="Inget mål">
+    <small class="fhint">Statistiken visar lagets snitt mot målet. Lämna tomt om laget inte ska ha något mål.</small></label>
   <p class="dlgerr" id="tErr"></p>
   <div class="dlgbtns">
     <button class="btn danger left" id="tDel">Ta bort lag</button>
@@ -534,7 +559,7 @@ const addDays=(d,n)=>new Date(d.getTime()+n*DAYMS);
 const CFG=window.ISTID_CONFIG||{};
 const sb=(window.supabase&&CFG.url&&CFG.key)?window.supabase.createClient(CFG.url,CFG.key):null;
 const state={monday:mondayOf(new Date()),weeks:{},teams:[],settings:clone(DEF),canEdit:false,connected:false,
-  user:null,role:null,year:null,loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7,filter:"all",view:"week"};
+  user:null,role:null,stats:null,statErr:"",loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7,filter:"all",view:"week"};
 try{if(localStorage.getItem("istid.vy")==="day")state.view="day";}catch(e){}
 const mq=window.matchMedia("(max-width:760px)");
 const dayView=()=>state.view==="day"&&!mq.matches;
@@ -576,7 +601,7 @@ function pickRink(){
 }
 function switchRink(id){
   if(id===state.rinkId) return;
-  state.rinkId=id; state.weeks={}; state.year=null; undoStack.length=0; state.writeErr="";
+  state.rinkId=id; state.weeks={}; state.stats=null; undoStack.length=0; state.writeErr="";
   const r=rink(); state.settings=cleanSettings(r);
   if(r){
     const p=new URLSearchParams(location.search); p.set("hall",slug(r.name));
@@ -592,11 +617,10 @@ async function refresh(){
   try{
     if(!state.rinkId){ state.rinks=await fetchRinks(); pickRink(); if(!state.rinkId) throw new Error("no rink"); }
     const key=curKey(),rid=state.rinkId;
-    const [rinks,teams,week,year]=await Promise.all([
+    const [rinks,teams,week]=await Promise.all([
       fetchRinks(),
-      sb.from("teams").select("id,name,org,color,match_before,match_after").then(ok),
-      fetchWeek(key),
-      state.canEdit?sb.rpc("year_stats",{p_year:isoWeek(keyDate(key)).year,p_rink:rid,p_exclude:key.slice(1)}).then(ok):null
+      sb.from("teams").select("id,name,org,color,match_before,match_after,goal_per_week").then(ok),
+      fetchWeek(key)
     ]);
     if(rid!==state.rinkId) return; /* hallen byttes medan svaret var på väg */
     state.loadErr=false; state.connected=true;
@@ -604,19 +628,19 @@ async function refresh(){
     if(gen===writeGen&&!pending){
       state.rinks=rinks; state.settings=cleanSettings(rink());
       state.teams=teams.map(t=>({id:t.id,name:String(t.name||"Namnlöst lag"),org:String(t.org||""),color:safeColor(t.color),
-        before:+t.match_before>=0?+t.match_before:RULE.before,after:+t.match_after>=0?+t.match_after:RULE.after}));
+        before:+t.match_before>=0?+t.match_before:RULE.before,after:+t.match_after>=0?+t.match_after:RULE.after,
+        goal:t.goal_per_week==null?null:+t.goal_per_week}));
       state.weeks[key]=week;
     }
-    if(year&&(seq===loadSeq||!state.year||state.year.key!==curKey())) state.year={key,rid,data:year};
   }catch(e){ state.loadErr=true; }
-  showNotice(); render();
+  showNotice(); render(); loadStats();
 }
 const busy=()=>!!(drag||pending||document.querySelector("dialog[open]"));
 
 /* ---------- Spara till databasen ---------- */
 function enqueue(fn){
   pending++; writeGen++; state.writeErr=""; setSave("Sparar…"); showNotice();
-  chain=chain.then(fn).then(()=>{if(--pending===0)setSave("Sparat");},e=>{pending--;onWriteError(e);});
+  chain=chain.then(fn).then(()=>{if(--pending===0){setSave("Sparat");loadStats();}},e=>{pending--;onWriteError(e);});
 }
 function onWriteError(e){
   setSave(""); undoStack.length=0;
@@ -667,7 +691,7 @@ function undo(){
 }
 function saveTeams(list){
   const d=diff(state.teams,list); state.teams=list;
-  push("teams",d,t=>({id:t.id,name:t.name,org:t.org,color:t.color,match_before:t.before,match_after:t.after})); render();
+  push("teams",d,t=>({id:t.id,name:t.name,org:t.org,color:t.color,match_before:t.before,match_after:t.after,goal_per_week:t.goal==null?null:t.goal})); render();
 }
 function saveSettings(s){
   state.settings=s;
@@ -862,39 +886,128 @@ function renderWarnings(){
   $("#warnhead").textContent=`Att se över (${list.length})`;
   $("#warnlist").replaceChildren(...list.map(i=>h("li",{class:i.k,text:i.t})));
 }
-function renderStats(){
-  const t=$("#stats"),w=isoWeek(state.monday),wk={},rn=(rink()||{}).name||"Hallen";
-  const ys=state.year&&state.year.key===curKey()&&state.year.rid===state.rinkId?state.year.data:null;
-  let wkPass=0,wkMin=0;
-  for(const b of timed()){
-    const len=b.end-b.start; wkPass++; wkMin+=len;
-    for(const id of b.teams){(wk[id]=wk[id]||{p:0,m:0}).p++; wk[id].m+=len;}
-  }
-  const num=(v,f)=>h("td",{class:v?null:"zero",text:v?(f?f(v):String(v)):"–"});
-  const wait=()=>h("td",{class:"zero",text:"…"});
-  const get=(o,id)=>o&&o[id]||{p:0,m:0};
-  const rows=[];
+/* ---------- Statistik ---------- */
+const isoD=d=>d.toISOString().slice(0,10);
+function season(){ /* säsongen går 1 augusti till 31 mars */
+  const n=new Date(),y=n.getMonth()>=7?n.getFullYear():n.getFullYear()-1;
+  return [`${y}-08-01`,`${y+1}-03-31`];
+}
+let statSeq=0;
+function statRange(){
+  const f=$("#sFrom").value,t=$("#sTo").value;
+  return f&&t&&f<=t?[f,t]:null;
+}
+async function loadStats(){
+  if(!sb||!state.canEdit||!state.rinkId) return;
+  const r=statRange(); if(!r){state.stats=null;state.statErr="Välj ett slutdatum som inte ligger före startdatumet.";renderStats();return;}
+  const seq=++statSeq,all=$("#sRink").value==="all";
+  try{
+    const d=ok(await sb.rpc("ice_stats",{p_from:r[0],p_to:r[1],p_rink:all?null:state.rinkId}));
+    if(seq!==statSeq) return;
+    state.stats={data:d||{},from:r[0],to:r[1],all}; state.statErr="";
+  }catch(e){ if(seq!==statSeq) return; state.stats=null; state.statErr="Statistiken gick inte att hämta just nu."; }
+  renderStats();
+}
+const num1=v=>v.toLocaleString("sv-SE",{minimumFractionDigits:1,maximumFractionDigits:1});
+/* Rader och rubriker används både av tabellen på skärmen och av Excel-exporten */
+function statRows(){
+  const d=state.stats.data,weeks=+d.weeks||0,rows=[];
   for(const [org,list] of grouped()) for(const tm of list){
-    const a=wk[tm.id]||{p:0,m:0},y=get(ys&&ys.teams,tm.id),o=get(ys&&ys.other_teams,tm.id);
-    const yp=a.p+(+y.p||0),ym=a.m+(+y.m||0);
-    rows.push(h("tr",null,h("td",null,h("span",{class:"dot",style:`--c:${tm.color}`}),tm.name),h("td",{text:tm.org||"–"}),
-      num(a.p),num(a.m,hrs),ys?num(yp):wait(),ys?num(ym,hrs):wait(),ys?num(ym+(+o.m||0),hrs):wait()));
+    const x=d.teams&&d.teams[tm.id]||{},tp=+x.tp||0,avg=weeks?tp/weeks:null;
+    rows.push({team:tm,name:tm.name,org:tm.org||"",tp,th:(+x.tm||0)/60,avg,goal:tm.goal,diff:avg!=null&&tm.goal!=null?avg-tm.goal:null,
+      early:+x.early||0,mid:+x.mid||0,late:+x.late||0,shared:+x.shared||0,mp:+x.mp||0,mh:(+x.mm||0)/60});
   }
-  if(!rows.length) rows.push(h("tr",null,h("td",{colSpan:7,class:"zero",text:"Statistiken fylls på när lag och pass finns inlagda."})));
-  const tot=ys&&ys.total||{p:0,m:0},ot=ys&&ys.other_total||{p:0,m:0};
+  return rows;
+}
+function orgRows(){
+  const d=state.stats.data,tot=d.total||{},all=(+tot.tm||0);
+  return Object.keys(d.orgs||{}).sort((a,b)=>a.localeCompare(b,"sv")).map(o=>{
+    const x=d.orgs[o];
+    return {org:o||"Utan förening",tp:+x.tp||0,th:(+x.tm||0)/60,share:all?(+x.tm||0)/all:null,mp:+x.mp||0,mh:(+x.mm||0)/60,oh:(+x.om||0)/60};
+  });
+}
+function renderStats(){
+  const t=$("#stats"),o=$("#statsOrg"),note=$("#sNote");
+  if(!$("#sFrom").value){const s0=season();$("#sFrom").value=s0[0];$("#sTo").value=s0[1];}
+  const sel=$("#sRink"),keep=sel.value||"one";
+  sel.replaceChildren(h("option",{value:"one",text:(rink()||{}).name||"Vald hall"}),h("option",{value:"all",text:"Alla hallar"})); sel.value=keep;
+  $("#sExport").disabled=!state.stats;
+  if(!state.stats){
+    note.textContent=state.statErr||"Hämtar statistiken…";
+    t.replaceChildren(); o.replaceChildren(); return;
+  }
+  const d=state.stats.data,weeks=+d.weeks||0,tot=d.total||{};
+  note.textContent=`Träningar räknas som istid, matcher redovisas för sig. Snittet per vecka räknas på ${weeks===1?"den enda vecka":"de "+weeks+" veckor"} i perioden som har träningar inlagda. `
+    +`Tidiga träningar börjar före 16:00, sena slutar efter 20:00 och övriga är mellan. Delade pass räknas fullt för varje lag.`;
+  const c=(v,f,cls)=>h("td",{class:(v?"":"zero")+(cls?" "+cls:""),text:v?(f?f(v):String(v)):"–"});
+  const rows=statRows().map(r=>h("tr",null,
+    h("td",null,h("span",{class:"dot",style:`--c:${r.team.color}`}),r.name),h("td",{text:r.org||"–"}),
+    c(r.tp,null,"sep"),c(r.th,num1),h("td",{class:r.avg?"":"zero",text:r.avg!=null&&r.tp?num1(r.avg):"–"}),
+    h("td",{class:r.goal==null?"zero":"",text:r.goal==null?"–":num1(r.goal)}),
+    h("td",{class:r.diff==null?"zero":(r.diff<-0.05?"under":""),text:r.diff==null?"–":(r.diff>0.05?"+":r.diff<-0.05?"−":"")+num1(Math.abs(r.diff))}),
+    c(r.early,null,"sep"),c(r.mid),c(r.late),c(r.shared,null,"sep"),c(r.mp,null,"sep"),c(r.mh,num1)));
+  if(!rows.length) rows.push(h("tr",null,h("td",{colSpan:13,class:"zero",text:"Statistiken fylls på när lag och pass finns inlagda."})));
   t.replaceChildren(
     h("thead",null,
       h("tr",null,h("th",{rowSpan:2,text:"Lag"}),h("th",{rowSpan:2,text:"Förening"}),
-        h("th",{colSpan:2,text:`${rn}, vecka ${w.week}`,style:"text-align:center"}),
-        h("th",{colSpan:2,text:`${rn}, hela ${w.year}`,style:"text-align:center"}),
-        h("th",{text:`Alla hallar ${w.year}`})),
-      h("tr",null,h("th",{text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Timmar"}))),
+        h("th",{colSpan:5,class:"grp",text:"Träningar"}),h("th",{colSpan:3,class:"grp",text:"Träningarnas tider"}),
+        h("th",{rowSpan:2,class:"sep",text:"Delade pass"}),h("th",{colSpan:2,class:"grp",text:"Matcher"})),
+      h("tr",null,h("th",{class:"sep",text:"Pass"}),h("th",{text:"Timmar"}),h("th",{text:"Snitt/vecka"}),h("th",{text:"Mål/vecka"}),h("th",{text:"Mot mål"}),
+        h("th",{class:"sep",text:"Tidiga"}),h("th",{text:"Mellan"}),h("th",{text:"Sena"}),h("th",{class:"sep",text:"Antal"}),h("th",{text:"Timmar"}))),
     h("tbody",null,rows),
-    h("tfoot",null,h("tr",null,h("td",{colSpan:2,text:"Bokad is totalt (delade pass räknas en gång)"}),
-      h("td",{text:String(wkPass)}),h("td",{text:hrs(wkMin)}),
-      h("td",{text:ys?String(wkPass+(+tot.p||0)):"…"}),h("td",{text:ys?hrs(wkMin+(+tot.m||0)):"…"}),
-      h("td",{text:ys?hrs(wkMin+(+tot.m||0)+(+ot.m||0)):"…"}))));
+    h("tfoot",null,h("tr",null,h("td",{colSpan:2,text:"Totalt (delade pass räknas en gång)"}),
+      h("td",{class:"sep",text:String(+tot.tp||0)}),h("td",{text:num1((+tot.tm||0)/60)}),h("td",{colSpan:3}),h("td",{colSpan:3,class:"sep"}),h("td",{class:"sep"}),
+      h("td",{class:"sep",text:String(+tot.mp||0)}),h("td",{text:num1((+tot.mm||0)/60)}))));
+  const or=orgRows();
+  o.replaceChildren(
+    h("thead",null,h("tr",null,h("th",{text:"Förening"}),h("th",{text:"Träningspass"}),h("th",{text:"Träningstimmar"}),
+      h("th",{text:"Andel av träningstiden"}),h("th",{text:"Matcher"}),h("th",{text:"Matchtimmar"}),h("th",{text:"Övrigt, timmar"}))),
+    h("tbody",null,or.length?or.map(r=>h("tr",null,h("td",{text:r.org}),c(r.tp),c(r.th,num1),
+      h("td",{class:r.share?"":"zero",text:r.share?Math.round(r.share*100)+" %":"–"}),c(r.mp),c(r.mh,num1),c(r.oh,num1)))
+      :[h("tr",null,h("td",{colSpan:7,class:"zero",text:"Inga pass i perioden."}))]));
 }
+$("#sFrom").addEventListener("change",loadStats);
+$("#sTo").addEventListener("change",loadStats);
+$("#sRink").addEventListener("change",loadStats);
+$("#sSeason").addEventListener("click",()=>{const s0=season();$("#sFrom").value=s0[0];$("#sTo").value=s0[1];loadStats();});
+$("#sExport").addEventListener("click",async()=>{
+  if(!state.stats) return;
+  const btn=$("#sExport"); btn.disabled=true;
+  try{
+    await loadExcel();
+    const st=state.stats,d=st.data,tot=d.total||{},hall=st.all?"Alla hallar":((rink()||{}).name||"Hall");
+    const wb=new ExcelJS.Workbook(); wb.created=new Date();
+    const HEAD={type:"pattern",pattern:"solid",fgColor:{argb:"FFD9DEE3"}},THIN={style:"thin",color:{argb:"FFB5BCC4"}};
+    const sheet=(name,cols,rows,foot)=>{
+      const ws=wb.addWorksheet(name,{views:[{state:"frozen",ySplit:3}],pageSetup:{orientation:"landscape",paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0}});
+      ws.getCell(1,1).value=`${name}, ${hall}, ${st.from} till ${st.to}`; ws.getCell(1,1).font={bold:true,size:13};
+      ws.getRow(3).values=cols.map(c=>c[0]);
+      ws.getRow(3).eachCell(c=>{c.font={bold:true};c.fill=HEAD;c.border={bottom:THIN};c.alignment={vertical:"middle",wrapText:true};});
+      ws.getRow(3).height=32;
+      cols.forEach((c,i)=>{const col=ws.getColumn(i+1);col.width=c[1];if(c[2])col.numFmt=c[2];});
+      rows.forEach(r=>ws.addRow(r));
+      if(foot){const fr=ws.addRow(foot);fr.eachCell({includeEmpty:true},c=>{c.font={bold:true};c.fill=HEAD;});}
+      return ws;
+    };
+    sheet("Per lag",[["Lag",26],["Förening",26],["Träningspass",12],["Träningstimmar",14,"0.0"],["Snitt pass/vecka",12,"0.0"],["Mål pass/vecka",12,"0.0"],["Mot mål",10,"+0.0;-0.0;0.0"],
+      ["Tidiga",9],["Mellan",9],["Sena",9],["Delade pass",11],["Matcher",10],["Matchtimmar",12,"0.0"]],
+      statRows().map(r=>[r.name,r.org,r.tp,r.th,r.tp?r.avg:null,r.goal,r.diff,r.early,r.mid,r.late,r.shared,r.mp,r.mh]),
+      ["Totalt (delade pass räknas en gång)","",+tot.tp||0,(+tot.tm||0)/60,null,null,null,null,null,null,null,+tot.mp||0,(+tot.mm||0)/60]);
+    sheet("Per förening",[["Förening",30],["Träningspass",12],["Träningstimmar",14,"0.0"],["Andel av träningstiden",14,"0%"],["Matcher",10],["Matchtimmar",12,"0.0"],["Övrigt, timmar",12,"0.0"]],
+      orgRows().map(r=>[r.org,r.tp,r.th,r.share,r.mp,r.mh,r.oh]));
+    const info=wb.addWorksheet("Så räknas det"); info.getColumn(1).width=110;
+    [`Period: ${st.from} till ${st.to}. Hall: ${hall}.`,
+     "Träningar räknas som istid. Matcher redovisas för sig och ingår inte i träningstimmarna.",
+     `Snittet per vecka räknas på de veckor i perioden som har träningar inlagda (${+d.weeks||0} st).`,
+     "Tidiga träningar börjar före 16:00. Sena träningar slutar efter 20:00. Övriga är mellan.",
+     "Delade pass räknas fullt för varje lag, men en gång per förening och en gång i totalen.",
+     "Pass utan fastställd tid ingår inte i timmarna. Matcher utan fastställd tid räknas i antalet matcher."].forEach(l=>info.addRow([l]));
+    const blob=new Blob([await wb.xlsx.writeBuffer()],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a=h("a",{href:URL.createObjectURL(blob),download:`istider_statistik_${st.from}_${st.to}.xlsx`});
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  }catch(e){ state.statErr="Filen kunde inte skapas. Kontrollera uppkopplingen och försök igen."; $("#sNote").textContent=state.statErr; }
+  btn.disabled=false;
+});
 
 /* ---------- Drag and drop ---------- */
 const snap=m=>Math.round(m/SNAP)*SNAP;
@@ -1085,6 +1198,7 @@ function openTeam(id){
   $("#tColors").replaceChildren(...cols.map((c,i)=>h("label",null,
     h("input",{type:"radio",name:"tcolor",value:c,checked:c===sel,"aria-label":`Färg ${i+1}`}),h("i",{style:`--c:${c}`}))));
   $("#tBefore").value=editTeam?editTeam.before:RULE.before; $("#tAfter").value=editTeam?editTeam.after:RULE.after;
+  $("#tGoal").value=editTeam&&editTeam.goal!=null?editTeam.goal:"";
   $("#tDel").hidden=!editTeam; $("#tSave").textContent=editTeam?"Spara lag":"Lägg till lag";
   $("#dlgTeam").showModal(); $("#tName").focus();
 }
@@ -1105,8 +1219,9 @@ $("#tSave").addEventListener("click",()=>{
   const clamp=(v,d,max)=>{const n=Math.round(+v);return v===""||isNaN(n)?d:Math.min(max,Math.max(0,n));};
   const before=clamp($("#tBefore").value,RULE.before,240),after=clamp($("#tAfter").value,RULE.after,480);
   const list=clone(state.teams);
-  if(editTeam){const t=list.find(x=>x.id===editTeam.id);if(t)Object.assign(t,{name,org,color,before,after});}
-  else list.push({id:uid(),name,org,color,before,after});
+  const gv=$("#tGoal").value.trim().replace(",","."),goal=gv===""||isNaN(+gv)?null:Math.min(20,Math.max(0,Math.round(+gv*10)/10));
+  if(editTeam){const t=list.find(x=>x.id===editTeam.id);if(t)Object.assign(t,{name,org,color,before,after,goal});}
+  else list.push({id:uid(),name,org,color,before,after,goal});
   $("#dlgTeam").close(); saveTeams(list);
 });
 $("#tDel").addEventListener("click",async()=>{
