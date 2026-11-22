@@ -830,7 +830,7 @@ function renderCal(){
       /* Rader som ryms under tid och lag: först matchstart, sedan anteckningen (kortas med … om den inte får plats) */
       const room=Math.max(0,Math.floor((len*PPM-2-26)/12)),showMs=k.ms!=null&&room>=1,noteLines=k.note?room-(showMs?1:0):0;
       const hidden=(k.ms!=null&&!showMs)||(k.note&&noteLines<1);
-      const cls="blk"+(k.type==="match"?" match":"")+(len<45?" short":"")++(flag[k.id]?" "+flag[k.id]:"");
+      const cls="blk"+(k.type==="match"?" match":"")+(len<45?" short":"")+(flag[k.id]?" "+flag[k.id]:"");
       const el=h("div",{class:cls,tabIndex:0,role:state.canEdit?"button":null,
         title:`${fmt(k.start)}–${fmt(k.end)} ${label(k)}${org?" ("+org+")":""}${k.ms!=null?"\nMatchstart "+fmt(k.ms):""}${k.note?"\n"+k.note:""}`,
         "aria-label":`${DAYS[d]} ${fmt(k.start)} till ${fmt(k.end)}, ${label(k)}${k.type==="match"?", match":""}`,
