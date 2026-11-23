@@ -105,6 +105,7 @@ h2{font-size:20px;font-weight:600}
 .regt input,.regt select{width:100%;min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
 .regt input.num{max-width:7em}
 .regh{font-size:15px;margin:14px 0 6px}
+.regt td.miss{color:var(--red);font-weight:500}
 .sbsum{border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:14px}
 .sbsum p{margin:0 0 6px}
 .sbsum details{margin-top:6px}
@@ -513,6 +514,7 @@ td.under{color:var(--amber);font-weight:600}
   <h3 class="regh">Kunder</h3>
   <table class="regt"><thead><tr><th>Förening eller hyresgäst</th><th>Kundnummer</th></tr></thead><tbody id="rgCust"></tbody></table>
   <h3 class="regh">Lag</h3>
+  <p class="dlgerr" id="rgMiss" hidden></p>
   <table class="regt"><thead><tr><th>Lag</th><th>Förening</th><th>Aktivitetstyp</th><th>Verksamhetstyp</th></tr></thead><tbody id="rgTeams"></tbody></table>
   <p class="dlgerr" id="rgErr" role="alert"></p>
   <div class="dlgbtns">
@@ -1598,8 +1600,11 @@ $("#reg").addEventListener("click",async()=>{
     $("#rgTeams").replaceChildren(...teams.map(t=>{
       const a=pick(SB_ACT,t.actor_activity||"Ishockey"),g=pick(SB_GRP,t.actor_group,"Inte vald");
       a.setAttribute("aria-label",`Aktivitetstyp för ${t.name}`); g.setAttribute("aria-label",`Verksamhetstyp för ${t.name}`);
-      return h("tr",null,h("td",{text:t.name}),h("td",{text:t.org||"–"}),h("td",null,a),h("td",null,g));
+      return h("tr",null,h("td",{text:t.name}),h("td",t.org?{text:t.org}:{class:"miss",text:"Saknar förening"}),h("td",null,a),h("td",null,g));
     }));
+    const lost=teams.filter(t=>!t.org).map(t=>t.name);
+    $("#rgMiss").hidden=!lost.length;
+    $("#rgMiss").textContent=lost.length?`Lag utan förening kommer inte med i exporten: ${lost.join(", ")}. Klicka på laget i listan bredvid schemat och fyll i förening.`:"";
     $("#rgSave").disabled=false;
   }catch(e){ err.textContent="Registret gick inte att hämta. Försök igen."; }
 });
@@ -1656,7 +1661,7 @@ $("#sbx").addEventListener("click",()=>{
   $("#dlgSb").showModal(); sbPreview();
 });
 for(const id of ["#sbFrom","#sbTo","#sbRinks","#sbOnly"]) $(id).addEventListener("change",()=>sbPreview());
-const sbList=(title,items)=>h("details",null,h("summary",{text:`${title}: ${items.length}`}),h("ul",null,items.map(t=>h("li",{text:t}))));
+const sbList=(title,items,open)=>h("details",{open:!!open},h("summary",{text:`${title}: ${items.length}`}),h("ul",null,items.map(t=>h("li",{text:t}))));
 async function sbPreview(keepMsg){
   const seq=++sbSeq,sum=$("#sbSum"),err=$("#sbErr"),btn=$("#sbSave");
   if(!keepMsg){err.textContent="";err.classList.remove("ok");}
@@ -1681,11 +1686,11 @@ async function sbPreview(keepMsg){
       if(date<from||date>to) continue;
       const rk=rm.get(r.rink_id),ts=(r.team_ids||[]).map(id=>tm.get(id)).filter(Boolean);
       const what=`${date} ${r.untimed?"tid saknas":fmt(r.start_min)+"–"+fmt(r.end_min)}, ${rk?rk.name:"okänd hall"}: ${ts.map(t=>t.name).join(" + ")||"inget lag"}`;
-      if(r.untimed){skip.push(what);continue;}
-      if(!ts.length){skip.push(what);continue;}
+      if(r.untimed){skip.push(what+" (passet har ingen tid)");continue;}
+      if(!ts.length){skip.push(what+" (passet har inget lag)");continue;}
       if(!rk||rk.actor_id==null){skip.push(what+" (hallen saknar objekts-ID)");continue;}
       const t0=ts[0],c=cm.get(t0.org);
-      if(!c){skip.push(what+" (laget saknar förening med kundnummer)");continue;}
+      if(!c){skip.push(what+(t0.org?` (föreningen ${t0.org} saknar kundnummer)`:` (${t0.name} saknar förening, ange den i lagets ruta)`));continue;}
       if(r.booking_no==null){skip.push(what+" (saknar bokningsnummer)");continue;}
       if(new Set(ts.map(t=>t.org)).size>1) warn.push(`${what}: lagen har olika föreningar, passet bokas på ${t0.org}`);
       if(!t0.actor_group) noGrp.add(t0.name);
@@ -1702,7 +1707,7 @@ async function sbPreview(keepMsg){
     const kids=[h("p",null,h("b",{text:`${out.length} pass i perioden: `}),`${n("ny")} nya, ${n("ändrad")} ändrade och ${n("oförändrad")} oförändrade sedan förra exporten.`)];
     if(n("ändrad")) kids.push(sbList("Ändrade sedan förra exporten",out.filter(o=>o.status==="ändrad").map(o=>`Nr ${o.no}: ${o.what}`)));
     if(gone.length) kids.push(sbList("Exporterade tidigare men finns inte kvar i perioden",gone.map(l=>`Nr ${l.booking_no}: ${l.summary}`)));
-    if(skip.length) kids.push(sbList("Kommer inte med i filen",skip));
+    if(skip.length) kids.push(sbList("Kommer inte med i filen",skip,true));
     if(warn.length) kids.push(sbList("Att kontrollera",warn));
     sum.replaceChildren(...kids);
     const only=$("#sbOnly").value==="new";
