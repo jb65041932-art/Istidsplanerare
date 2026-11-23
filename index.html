@@ -91,6 +91,25 @@ h2{font-size:20px;font-weight:600}
 .ulist .who2 b{display:block;font-weight:500;overflow-wrap:anywhere}
 .ulist .who2 span{color:var(--muted);font-size:13px}
 .ulist .btn{padding:4px 9px;font-size:14px}
+.uacc{flex:1 1 100%;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;font-size:14px}
+.uacc select{padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink)}
+.uhalls{display:flex;flex-wrap:wrap;gap:4px 14px}
+.uhalls label{display:flex;gap:5px;align-items:center}
+#dlgReg{width:min(680px,calc(100vw - 24px))}
+#dlgSb{width:min(560px,calc(100vw - 24px))}
+.regt{width:100%;border-collapse:collapse;font-size:14px;margin-bottom:6px;table-layout:fixed}
+.regt th:first-child{width:32%}
+.regt td{overflow-wrap:anywhere}
+.regt th{text-align:left;font-weight:500;color:var(--muted);font-size:13px;padding:4px 6px;background:var(--sunken)}
+.regt td{padding:3px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+.regt input,.regt select{width:100%;min-width:0;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--ink);font:inherit;font-size:14px}
+.regt input.num{max-width:7em}
+.regh{font-size:15px;margin:14px 0 6px}
+.sbsum{border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:14px}
+.sbsum p{margin:0 0 6px}
+.sbsum details{margin-top:6px}
+.sbsum summary{cursor:pointer;font-weight:500}
+.sbsum ul{margin:4px 0 0;padding-left:18px;max-height:150px;overflow:auto;font-variant-numeric:tabular-nums}
 .inviterow{display:flex;gap:8px;align-items:end}
 .inviterow .f{flex:1;margin:0}
 .linkbox{background:var(--sunken);border-radius:6px;padding:12px;margin:14px 0 4px}
@@ -249,6 +268,7 @@ fieldset.f{border:0;padding:0;margin:0 0 12px}
 .hours b{font-weight:500}
 .hours em{font-style:normal;color:var(--muted);font-size:13px}
 .dlgerr{color:var(--red);margin:0 0 10px;min-height:1.2em;font-size:14px}
+.dlgerr.ok{color:var(--ink)}
 .dlgbtns{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
 .dlgbtns .left{margin-right:auto}
 @media (prefers-reduced-motion:no-preference){.btn,.chip{transition:border-color .12s}}
@@ -328,6 +348,8 @@ td.under{color:var(--amber);font-weight:600}
         <button class="btn desk-only" id="copy">Kopiera vecka</button>
         <button class="btn desk-only" id="export">Exportera Excel</button>
         <button class="btn desk-only" id="hours">Öppettider</button>
+        <button class="btn desk-only" id="sbx" hidden>Smartbook-export</button>
+        <button class="btn desk-only" id="reg" hidden>Register</button>
         <button class="btn desk-only" id="users" hidden>Användare</button>
         <span class="savestate" id="savestate" aria-live="polite"></span>
       </div>
@@ -459,11 +481,17 @@ td.under{color:var(--amber);font-weight:600}
 
 <dialog id="dlgUsers" aria-labelledby="dlgUsersH">
   <h2 id="dlgUsersH">Användare</h2>
-  <p class="dlgnote">De här personerna får ändra schemat. Alla andra kan bara läsa det.</p>
+  <p class="dlgnote">De här personerna får ändra schemat. Alla andra kan bara läsa det. En planerare ändrar pass i de hallar som är ikryssade. Kommun ändrar i alla hallar och sköter register och export till Smartbook, men inte användare.</p>
   <ul class="ulist" id="uList"></ul>
-  <form class="inviterow" id="inviteForm">
-    <label class="f"><span>Bjud in med e-postadress</span><input type="email" id="uEmail" autocomplete="off" required></label>
-    <button type="submit" class="btn primary" id="uInvite">Bjud in</button>
+  <form id="inviteForm">
+    <div class="uacc" style="margin-bottom:8px">
+      <label>Roll <select id="uRole"><option value="editor">Planerare</option><option value="kommun">Kommun</option></select></label>
+      <span class="uhalls" id="uRinks"></span>
+    </div>
+    <div class="inviterow">
+      <label class="f"><span>Bjud in med e-postadress</span><input type="email" id="uEmail" autocomplete="off" required></label>
+      <button type="submit" class="btn primary" id="uInvite">Bjud in</button>
+    </div>
   </form>
   <div class="linkbox" id="uLinkBox" hidden>
     <p id="uLinkText"></p>
@@ -475,6 +503,42 @@ td.under{color:var(--amber);font-weight:600}
   </div>
   <p class="dlgerr" id="uErr" role="alert" style="margin-top:10px"></p>
   <div class="dlgbtns"><button class="btn" data-close>Stäng</button></div>
+</dialog>
+
+<dialog id="dlgReg" aria-labelledby="dlgRegH">
+  <h2 id="dlgRegH">Register för Smartbook</h2>
+  <p class="dlgnote">Uppgifterna används bara i exporten till Actor Smartbook. De syns inte för planerare och ändrar inte schemat.</p>
+  <h3 class="regh">Anläggningar</h3>
+  <table class="regt"><thead><tr><th>Hall här</th><th>Objekts-ID</th><th>Objektsnamn i Smartbook</th></tr></thead><tbody id="rgRinks"></tbody></table>
+  <h3 class="regh">Kunder</h3>
+  <table class="regt"><thead><tr><th>Förening eller hyresgäst</th><th>Kundnummer</th></tr></thead><tbody id="rgCust"></tbody></table>
+  <h3 class="regh">Lag</h3>
+  <table class="regt"><thead><tr><th>Lag</th><th>Förening</th><th>Aktivitetstyp</th><th>Verksamhetstyp</th></tr></thead><tbody id="rgTeams"></tbody></table>
+  <p class="dlgerr" id="rgErr" role="alert"></p>
+  <div class="dlgbtns">
+    <button class="btn" data-close>Avbryt</button>
+    <button class="btn primary" id="rgSave">Spara register</button>
+  </div>
+</dialog>
+
+<dialog id="dlgSb" aria-labelledby="dlgSbH">
+  <h2 id="dlgSbH">Exportera till Smartbook</h2>
+  <div class="row2">
+    <label class="f"><span>Från datum</span><input type="date" id="sbFrom"></label>
+    <label class="f"><span>Till datum</span><input type="date" id="sbTo"></label>
+  </div>
+  <fieldset class="f"><legend>Hallar</legend><div class="uhalls" id="sbRinks"></div></fieldset>
+  <label class="f"><span>Innehåll i filen</span><select id="sbOnly">
+    <option value="all">Alla pass i perioden</option>
+    <option value="new">Bara nya och ändrade sedan förra exporten</option>
+  </select></label>
+  <div class="sbsum" id="sbSum" aria-live="polite"></div>
+  <p class="dlgnote">Filen följer importmallen för Actor Smartbook, fliken Bokningar. Pass som kommer med i filen markeras som exporterade.</p>
+  <p class="dlgerr" id="sbErr" role="alert"></p>
+  <div class="dlgbtns">
+    <button class="btn" data-close>Stäng</button>
+    <button class="btn primary" id="sbSave" disabled>Skapa importfil</button>
+  </div>
 </dialog>
 
 <dialog id="dlgCopy" aria-labelledby="dlgCopyH">
@@ -561,9 +625,15 @@ const addDays=(d,n)=>new Date(d.getTime()+n*DAYMS);
 
 const CFG=window.ISTID_CONFIG||{};
 const sb=(window.supabase&&CFG.url&&CFG.key)?window.supabase.createClient(CFG.url,CFG.key):null;
-const state={monday:mondayOf(new Date()),weeks:{},teams:[],settings:clone(DEF),canEdit:false,connected:false,
-  user:null,role:null,stats:null,statErr:"",loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7,filter:"all",view:"week"};
+const state={monday:mondayOf(new Date()),weeks:{},teams:[],settings:clone(DEF),connected:false,
+  user:null,role:null,myRinks:null,stats:null,statErr:"",loadErr:false,writeErr:"",linkErr:false,rinks:[],rinkId:null,day:(new Date().getDay()+6)%7,filter:"all",view:"week"};
 try{if(localStorage.getItem("istid.vy")==="day")state.view="day";}catch(e){}
+/* Planerare ändrar bara i sina hallar. myRinks är null för den som får ändra i alla. */
+const mayEdit=id=>!!state.role&&(state.myRinks===null||state.myRinks.includes(id));
+Object.defineProperty(state,"canEdit",{get(){return mayEdit(state.rinkId);}});
+const manager=()=>state.role==="super"||state.role==="kommun";
+/* Bokningsnummer per pass. Skickas med när ett pass läggs tillbaka, så numret aldrig byts. */
+const bookNo=new Map();
 const mq=window.matchMedia("(max-width:760px)");
 const dayView=()=>state.view==="day"&&!mq.matches;
 const vis=b=>state.filter==="all"||b.type===state.filter;
@@ -581,7 +651,11 @@ const timed=()=>cur().filter(b=>!b.untimed);
 const ok=r=>{if(r.error)throw r.error;return r.data;};
 const rowToB=r=>({id:r.id,teams:Array.isArray(r.team_ids)?r.team_ids:[],day:r.day,start:r.start_min,end:r.end_min,
   type:TYPES[r.type]?r.type:"traning",note:r.note||"",untimed:!!r.untimed,ms:r.match_start==null?null:r.match_start});
-const bToRow=(key,b)=>({id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams,untimed:!!b.untimed,match_start:b.ms==null?null:b.ms});
+const bToRow=(key,b)=>{
+  const r={id:b.id,rink_id:state.rinkId,week_start:key.slice(1),day:b.day,start_min:b.start,end_min:b.end,type:b.type,note:b.note,team_ids:b.teams,untimed:!!b.untimed,match_start:b.ms==null?null:b.ms};
+  if(bookNo.has(b.id)) r.booking_no=bookNo.get(b.id);
+  return r;
+};
 function cleanSettings(d){
   const s=clone(DEF); if(!d) return s;
   if(Array.isArray(d.open_hours)&&d.open_hours.length===7){
@@ -592,10 +666,13 @@ function cleanSettings(d){
   return s;
 }
 async function fetchWeek(key){
-  return ok(await sb.from("bookings").select("id,day,start_min,end_min,type,note,team_ids,untimed,match_start").eq("rink_id",state.rinkId).eq("week_start",key.slice(1))).map(rowToB);
+  const d=ok(await sb.from("bookings").select("id,booking_no,day,start_min,end_min,type,note,team_ids,untimed,match_start").eq("rink_id",state.rinkId).eq("week_start",key.slice(1)));
+  for(const r of d) if(r.booking_no!=null) bookNo.set(r.id,r.booking_no);
+  return d.map(rowToB);
 }
-const cleanRinks=d=>(d||[]).map(r=>({id:r.id,name:String(r.name||"Hall"),open_hours:r.open_hours,buffer_min:r.buffer_min,default_len:r.default_len}));
-const fetchRinks=()=>sb.from("rinks").select("id,name,sort,open_hours,buffer_min,default_len").order("sort").then(ok).then(cleanRinks);
+const cleanRinks=d=>(d||[]).map(r=>({id:r.id,name:String(r.name||"Hall"),open_hours:r.open_hours,buffer_min:r.buffer_min,default_len:r.default_len,
+  actor_id:r.actor_id==null?null:+r.actor_id,actor_name:r.actor_name||""}));
+const fetchRinks=()=>sb.from("rinks").select("id,name,sort,open_hours,buffer_min,default_len,actor_id,actor_name").order("sort").then(ok).then(cleanRinks);
 function pickRink(){
   let want=new URLSearchParams(location.search).get("hall");
   if(!want){try{want=localStorage.getItem("istid.hall");}catch(e){}}
@@ -661,7 +738,8 @@ function showNotice(){
   else if(state.writeErr){t=state.writeErr;err=true;}
   else if(state.loadErr){t="Schemat går inte att nå just nu. Det som visas kan vara inaktuellt.";err=true;}
   else if(!state.connected){t="Hämtar schemat…";}
-  else if(state.user&&!state.canEdit){t="Du är inloggad, men kontot har inte rätt att ändra schemat.";}
+  else if(state.user&&!state.role){t="Du är inloggad, men kontot har inte rätt att ändra schemat.";}
+  else if(state.user&&!state.canEdit){t="Du kan läsa den här hallen men inte ändra den. Välj en av dina hallar för att planera.";}
   n.textContent=t;n.classList.toggle("err",err);
 }
 function diff(oldList,newList){
@@ -672,7 +750,10 @@ function push(table,d,map){
   const rows=d.up.map(map); /* raderna byggs direkt, innan vald hall hinner bytas */
   enqueue(async()=>{
     if(d.del.length) ok(await sb.from(table).delete().in("id",d.del));
-    if(rows.length) ok(await sb.from(table).upsert(rows));
+    /* En upsert kräver samma kolumner i alla rader, så rader med och utan bokningsnummer går var för sig */
+    const groups=new Map();
+    for(const r of rows){const k=Object.keys(r).join();if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);}
+    for(const g of groups.values()) ok(await sb.from(table).upsert(g));
   });
 }
 
@@ -758,6 +839,7 @@ function renderHead(){
   $("#copy").disabled=!cur().length;
   $("#newpass").disabled=!state.teams.length;
   $("#users").hidden=state.role!=="super";
+  $("#sbx").hidden=$("#reg").hidden=!manager();
   $("#rinks").replaceChildren(...state.rinks.map(r=>{
     const b=h("button",{class:"rinkbtn",type:"button",text:r.name,"aria-pressed":String(r.id===state.rinkId)});
     b.addEventListener("click",()=>switchRink(r.id)); return b;
@@ -1489,6 +1571,181 @@ $("#xSave").addEventListener("click",async()=>{
   finally{ btn.disabled=false; xCount(); }
 });
 
+/* ---------- Register för Smartbook (super och kommun) ---------- */
+const SB_ACT=["Badminton","Basket","Bordtennis","Boule","Boxning","Brottning","Cheerleading","Curling","Fotboll","Friidrott","Gymnastik","Handboll","Hundsport","Innebandy","Ishockey","Kalas","Kampsport","Karate","Konståkning","Möte/konferens","Parasport","Simning","Skytte","Tennis","Volleyboll","Övrig aktivitet"];
+const SB_GRP=["Blandad ålder","Jun dam","Jun herr","Junior","Senior","Senior dam","Senior herr","Skolverksamhet","Ungd. flick","Ungd. pojk","Ungdom upp till 16 år"];
+const SB_TYPE={traning:"Schema",match:"Match",ovrigt:"Övrig aktivitet"};
+const pick=(list,val,empty)=>{
+  const o=(empty?[h("option",{value:"",text:empty})]:[]).concat((val&&!list.includes(val)?[val,...list]:list).map(v=>h("option",{value:v,text:v})));
+  const el=h("select",null,o); el.value=val||""; return el;
+};
+let regData=null;
+$("#reg").addEventListener("click",async()=>{
+  const err=$("#rgErr"); err.textContent=""; regData=null; $("#rgSave").disabled=true;
+  for(const id of ["#rgRinks","#rgCust","#rgTeams"]) $(id).replaceChildren();
+  $("#dlgReg").showModal();
+  try{
+    const [cust,teams,rinks]=await Promise.all([
+      sb.from("customers").select("id,name,kund_nr").order("name").then(ok),
+      sb.from("teams").select("id,name,org,actor_activity,actor_group").order("name").then(ok),
+      fetchRinks()]);
+    regData={cust,teams,rinks};
+    $("#rgRinks").replaceChildren(...rinks.map(r=>h("tr",null,h("td",{text:r.name}),
+      h("td",null,h("input",{class:"num",type:"number",min:"1",step:"1",value:r.actor_id==null?"":String(r.actor_id),"aria-label":`Objekts-ID för ${r.name}`})),
+      h("td",null,h("input",{type:"text",maxLength:80,value:r.actor_name,"aria-label":`Objektsnamn för ${r.name}`})))));
+    $("#rgCust").replaceChildren(...cust.map(c=>h("tr",null,h("td",{text:c.name}),
+      h("td",null,h("input",{class:"num",type:"number",min:"1",step:"1",value:String(c.kund_nr),"aria-label":`Kundnummer för ${c.name}`})))));
+    $("#rgTeams").replaceChildren(...teams.map(t=>{
+      const a=pick(SB_ACT,t.actor_activity||"Ishockey"),g=pick(SB_GRP,t.actor_group,"Inte vald");
+      a.setAttribute("aria-label",`Aktivitetstyp för ${t.name}`); g.setAttribute("aria-label",`Verksamhetstyp för ${t.name}`);
+      return h("tr",null,h("td",{text:t.name}),h("td",{text:t.org||"–"}),h("td",null,a),h("td",null,g));
+    }));
+    $("#rgSave").disabled=false;
+  }catch(e){ err.textContent="Registret gick inte att hämta. Försök igen."; }
+});
+$("#rgSave").addEventListener("click",async()=>{
+  if(!regData) return;
+  const err=$("#rgErr"),btn=$("#rgSave"); err.textContent="";
+  const int=v=>{const n=+String(v).trim();return Number.isInteger(n)&&n>0?n:null;};
+  const jobs=[],nums=new Set();
+  const rr=[...$("#rgRinks").rows];
+  for(let i=0;i<rr.length;i++){
+    const r=regData.rinks[i],ins=rr[i].querySelectorAll("input"),raw=ins[0].value.trim(),id=raw===""?null:int(raw),name=ins[1].value.trim();
+    if(raw!==""&&id==null) return void(err.textContent=`${r.name}: objekts-ID ska vara ett heltal.`);
+    if(id!==r.actor_id||name!==r.actor_name) jobs.push(()=>sb.rpc("set_rink_actor",{p_rink:r.id,p_actor_id:id,p_actor_name:name}));
+  }
+  const cr=[...$("#rgCust").rows];
+  for(let i=0;i<cr.length;i++){
+    const c=regData.cust[i],n=int(cr[i].querySelector("input").value);
+    if(n==null) return void(err.textContent=`${c.name}: kundnumret ska vara ett heltal.`);
+    if(nums.has(n)) return void(err.textContent=`Kundnummer ${n} står på flera kunder. Varje kund behöver ett eget nummer.`);
+    nums.add(n);
+    if(n!==c.kund_nr) jobs.push(()=>sb.from("customers").update({kund_nr:n}).eq("id",c.id));
+  }
+  const tr=[...$("#rgTeams").rows];
+  for(let i=0;i<tr.length;i++){
+    const t=regData.teams[i],ss=tr[i].querySelectorAll("select"),a=ss[0].value,g=ss[1].value||null;
+    if(a!==(t.actor_activity||"Ishockey")||g!==(t.actor_group||null)) jobs.push(()=>sb.from("teams").update({actor_activity:a,actor_group:g}).eq("id",t.id));
+  }
+  btn.disabled=true;
+  try{
+    for(const j of jobs) ok(await j());
+    $("#dlgReg").close(); refresh();
+  }catch(e){
+    err.textContent=e&&e.code==="23505"?"Ett kundnummer används redan av en annan kund. Inget mer sparades, kontrollera numren."
+      :e&&e.code==="42501"?"Kontot har inte behörighet att ändra registret.":"Registret kunde inte sparas helt. Öppna det igen och kontrollera uppgifterna.";
+  }
+  btn.disabled=false;
+});
+
+/* ---------- Export till Actor Smartbook (super och kommun) ---------- */
+const SB_HEAD=["Förening","Objektsnamn","Objekts ID","BokningsNR","KundNr","Aktivitetstyp","Bokningstyp","Verksamhetstyp","Pris","Datum","Starttid","Sluttid","Hemmalag","Bortalag","Serie","Matchstart","Undergrupp","Undersektion"];
+const SB_FILL=i=>i<2?"FFFFFF00":i>=12&&i<=15?"FFADD8E6":"FF90EE90";
+const SB_W=[34,22,11,12,10,16,16,22,9,13,10,10,12,12,12,12,13,13];
+async function allRows(mk){
+  const out=[];
+  for(let p=0;;p+=1000){const d=ok(await mk().range(p,p+999));out.push(...d);if(d.length<1000)break;}
+  return out;
+}
+let sbData=null,sbSeq=0;
+$("#sbx").addEventListener("click",()=>{
+  $("#sbFrom").value=iso(state.monday); $("#sbTo").value=iso(addDays(state.monday,6));
+  $("#sbRinks").replaceChildren(...state.rinks.map(r=>h("label",null,
+    h("input",{type:"checkbox",value:r.id,checked:r.actor_id!=null,disabled:r.actor_id==null}),r.name+(r.actor_id==null?" (saknar objekts-ID)":""))));
+  $("#sbOnly").value="all"; $("#sbErr").textContent=""; $("#sbErr").classList.remove("ok"); $("#sbSum").replaceChildren();
+  $("#dlgSb").showModal(); sbPreview();
+});
+for(const id of ["#sbFrom","#sbTo","#sbRinks","#sbOnly"]) $(id).addEventListener("change",()=>sbPreview());
+const sbList=(title,items)=>h("details",null,h("summary",{text:`${title}: ${items.length}`}),h("ul",null,items.map(t=>h("li",{text:t}))));
+async function sbPreview(keepMsg){
+  const seq=++sbSeq,sum=$("#sbSum"),err=$("#sbErr"),btn=$("#sbSave");
+  if(!keepMsg){err.textContent="";err.classList.remove("ok");}
+  sbData=null; btn.disabled=true;
+  const from=$("#sbFrom").value,to=$("#sbTo").value,rids=[...document.querySelectorAll("#sbRinks input:checked")].map(c=>c.value);
+  if(!from||!to||to<from){sum.replaceChildren(h("p",{text:"Välj ett slutdatum som inte ligger före startdatumet."}));return;}
+  if(!rids.length){sum.replaceChildren(h("p",{text:"Välj minst en hall."}));return;}
+  sum.replaceChildren(h("p",{text:"Räknar…"}));
+  try{
+    await chain; /* väntar in ändringar som håller på att sparas */
+    const w0=iso(monUTC(new Date(from+"T00:00:00Z")));
+    const [rows,teams,custs,log]=await Promise.all([
+      allRows(()=>sb.from("bookings").select("id,booking_no,rink_id,week_start,day,start_min,end_min,type,team_ids,untimed,match_start").in("rink_id",rids).gte("week_start",w0).lte("week_start",to).order("id")),
+      sb.from("teams").select("id,name,org,actor_activity,actor_group").then(ok),
+      sb.from("customers").select("name,kund_nr").then(ok),
+      allRows(()=>sb.from("exports").select("booking_id,booking_no,day_date,start_min,end_min,summary,sig").in("rink_id",rids).gte("day_date",from).lte("day_date",to).order("booking_id"))]);
+    if(seq!==sbSeq) return;
+    const tm=new Map(teams.map(t=>[t.id,t])),cm=new Map(custs.map(c=>[c.name,c])),rm=new Map(state.rinks.map(r=>[r.id,r])),lg=new Map(log.map(l=>[l.booking_id,l]));
+    const out=[],skip=[],warn=[],noGrp=new Set();
+    for(const r of rows){
+      const date=iso(addDays(new Date(r.week_start+"T00:00:00Z"),r.day));
+      if(date<from||date>to) continue;
+      const rk=rm.get(r.rink_id),ts=(r.team_ids||[]).map(id=>tm.get(id)).filter(Boolean);
+      const what=`${date} ${r.untimed?"tid saknas":fmt(r.start_min)+"–"+fmt(r.end_min)}, ${rk?rk.name:"okänd hall"}: ${ts.map(t=>t.name).join(" + ")||"inget lag"}`;
+      if(r.untimed){skip.push(what);continue;}
+      if(!ts.length){skip.push(what);continue;}
+      if(!rk||rk.actor_id==null){skip.push(what+" (hallen saknar objekts-ID)");continue;}
+      const t0=ts[0],c=cm.get(t0.org);
+      if(!c){skip.push(what+" (laget saknar förening med kundnummer)");continue;}
+      if(r.booking_no==null){skip.push(what+" (saknar bokningsnummer)");continue;}
+      if(new Set(ts.map(t=>t.org)).size>1) warn.push(`${what}: lagen har olika föreningar, passet bokas på ${t0.org}`);
+      if(!t0.actor_group) noGrp.add(t0.name);
+      const cells=[c.name,rk.actor_name||rk.name,rk.actor_id,+r.booking_no,c.kund_nr,t0.actor_activity||"Ishockey",SB_TYPE[r.type]||"Schema",t0.actor_group||"","",
+        date,fmt(r.start_min),fmt(r.end_min),"","","",r.type==="match"&&r.match_start!=null?fmt(r.match_start):"","",""];
+      const sig=cells.slice(2,12).join("|"),l=lg.get(r.id);
+      out.push({id:r.id,rid:r.rink_id,no:+r.booking_no,date,start:r.start_min,end:r.end_min,what,cells,sig,status:!l?"ny":l.sig!==sig?"ändrad":"oförändrad"});
+    }
+    out.sort((a,b)=>a.date<b.date?-1:a.date>b.date?1:a.start-b.start||a.no-b.no);
+    if(noGrp.size) warn.unshift(`Lag utan verksamhetstyp (kolumnen lämnas tom): ${[...noGrp].sort().join(", ")}`);
+    const ids=new Set(out.map(o=>o.id)),gone=log.filter(l=>!ids.has(l.booking_id));
+    const n=k=>out.filter(o=>o.status===k).length;
+    sbData={from,to,out,gone};
+    const kids=[h("p",null,h("b",{text:`${out.length} pass i perioden: `}),`${n("ny")} nya, ${n("ändrad")} ändrade och ${n("oförändrad")} oförändrade sedan förra exporten.`)];
+    if(n("ändrad")) kids.push(sbList("Ändrade sedan förra exporten",out.filter(o=>o.status==="ändrad").map(o=>`Nr ${o.no}: ${o.what}`)));
+    if(gone.length) kids.push(sbList("Exporterade tidigare men finns inte kvar i perioden",gone.map(l=>`Nr ${l.booking_no}: ${l.summary}`)));
+    if(skip.length) kids.push(sbList("Kommer inte med i filen",skip));
+    if(warn.length) kids.push(sbList("Att kontrollera",warn));
+    sum.replaceChildren(...kids);
+    const only=$("#sbOnly").value==="new";
+    btn.disabled=!(only?out.some(o=>o.status!=="oförändrad"):out.length)&&!gone.length;
+  }catch(e){ if(seq===sbSeq) sum.replaceChildren(h("p",{text:"Underlaget gick inte att hämta. Kontrollera uppkopplingen och försök igen."})); }
+}
+$("#sbSave").addEventListener("click",async()=>{
+  const d=sbData; if(!d) return;
+  const err=$("#sbErr"),btn=$("#sbSave"); err.textContent=""; err.classList.remove("ok"); btn.disabled=true;
+  const list=$("#sbOnly").value==="new"?d.out.filter(o=>o.status!=="oförändrad"):d.out;
+  try{
+    await loadExcel();
+    const wb=new ExcelJS.Workbook(); wb.created=new Date();
+    const ws=wb.addWorksheet("Bokningar");
+    ws.addRow(SB_HEAD);
+    ws.getRow(1).eachCell((c,i)=>{c.font={bold:true};c.fill={type:"pattern",pattern:"solid",fgColor:{argb:SB_FILL(i-1)}};});
+    SB_W.forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+    for(const o of list){
+      const row=ws.addRow(o.cells.map(v=>v===""?null:v));
+      for(const i of [3,4,5]) row.getCell(i).numFmt="0";
+      for(const i of [10,11,12,16]) row.getCell(i).numFmt="@";
+    }
+    if(d.gone.length){
+      const g=wb.addWorksheet("Borttagna");
+      g.addRow(["BokningsNR","Datum","Starttid","Sluttid","Senast exporterat som"]); g.getRow(1).font={bold:true};
+      [12,13,10,10,60].forEach((w,i)=>{g.getColumn(i+1).width=w;});
+      for(const l of d.gone) g.addRow([+l.booking_no,l.day_date,fmt(l.start_min),fmt(l.end_min),l.summary]);
+    }
+    const blob=new Blob([await wb.xlsx.writeBuffer()],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    const a=h("a",{href:URL.createObjectURL(blob),download:`smartbook_${d.from}_till_${d.to}.xlsx`});
+    document.body.append(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  }catch(e){ err.textContent="Filen kunde inte skapas. Kontrollera uppkopplingen och försök igen."; btn.disabled=false; return; }
+  try{
+    const now=new Date().toISOString();
+    const rows=list.map(o=>({booking_id:o.id,booking_no:o.no,rink_id:o.rid,day_date:o.date,start_min:o.start,end_min:o.end,summary:o.what,sig:o.sig,exported_at:now}));
+    for(let i=0;i<rows.length;i+=500) ok(await sb.from("exports").upsert(rows.slice(i,i+500),{onConflict:"booking_id"}));
+    const del=d.gone.map(l=>l.booking_id);
+    for(let i=0;i<del.length;i+=200) ok(await sb.from("exports").delete().in("booking_id",del.slice(i,i+200)));
+    err.classList.add("ok"); err.textContent=`Filen är skapad med ${list.length} pass, och de är markerade som exporterade.`;
+  }catch(e){ err.textContent="Filen är skapad, men passen kunde inte markeras som exporterade. Nästa export visar dem därför som nya."; }
+  sbPreview(true);
+});
+
 /* ---------- Inloggning ---------- */
 $("#login").addEventListener("click",()=>{$("#lErr").textContent="";$("#lPass").value="";$("#dlgLogin").showModal();});
 $("#logout").addEventListener("click",()=>{if(sb)sb.auth.signOut();});
@@ -1505,9 +1762,15 @@ $("#loginForm").addEventListener("submit",async e=>{
 });
 async function applySession(session){
   state.user=session?session.user:null;
-  let role=null;
-  if(state.user){ const r=await sb.rpc("my_role"); if(!r.error&&(r.data==="super"||r.data==="editor")) role=r.data; }
-  state.role=role; state.canEdit=!!role; state.writeErr=""; if(!role) undoStack.length=0;
+  let role=null,mine=null;
+  if(state.user){
+    const r=await sb.rpc("my_access"),d=r.error?null:r.data;
+    if(d&&["super","kommun","editor"].includes(d.role)){
+      role=d.role;
+      mine=role==="editor"?(Array.isArray(d.rinks)?d.rinks:[]):null;
+    }
+  }
+  state.role=role; state.myRinks=mine; state.writeErr=""; if(!role) undoStack.length=0;
   $("#login").hidden=!!state.user; $("#logout").hidden=!state.user;
   $("#who").textContent=state.user?(state.user.email||""):"";
   showNotice(); render();
@@ -1551,12 +1814,14 @@ async function api(action,extra){
   return d;
 }
 const uFail=e=>{$("#uErr").textContent=UERR[e&&e.message]||"Det gick inte just nu. Försök igen om en stund.";};
+const ROLE_TXT={super:"Superanvändare",kommun:"Kommun",editor:"Planerare"};
+const rinkChecks=sel=>state.rinks.map(r=>h("label",null,h("input",{type:"checkbox",value:r.id,checked:sel.includes(r.id)}),r.name));
 async function loadUsers(){
   const ul=$("#uList"); ul.replaceChildren(h("li",null,h("span",{class:"who2",text:"Hämtar…"})));
   try{
     const d=await api("list");
     ul.replaceChildren(...d.editors.map(u=>{
-      const kind=u.role==="super"?"Superanvändare":"Planerare",st=u.active?"har loggat in":"har inte loggat in än";
+      const kind=ROLE_TXT[u.role]||"Planerare",st=u.active?"har loggat in":"har inte loggat in än";
       const li=h("li",null,h("div",{class:"who2"},h("b",{text:u.email}),h("span",{text:`${kind}, ${st}${u.me?" (du)":""}`})));
       if(!u.me){
         const nl=h("button",{class:"btn",type:"button",text:"Ny länk"});
@@ -1564,6 +1829,20 @@ async function loadUsers(){
         li.append(nl);
       }
       if(!u.me&&u.role!=="super"){
+        const sel=h("select",{"aria-label":`Roll för ${u.email}`},h("option",{value:"editor",text:"Planerare"}),h("option",{value:"kommun",text:"Kommun"}));
+        sel.value=u.role==="kommun"?"kommun":"editor";
+        const box=h("span",{class:"uhalls"},rinkChecks(u.rink_ids||[]));
+        box.hidden=sel.value!=="editor";
+        const acc=h("div",{class:"uacc"},sel,box);
+        acc.addEventListener("change",async e=>{
+          const ed=sel.value==="editor"; box.hidden=!ed;
+          /* Den som görs till planerare får alla hallar tills något kryssas ur */
+          if(e.target===sel&&ed) box.querySelectorAll("input").forEach(c=>{c.checked=true;});
+          $("#uErr").textContent="";
+          try{await api("update",{email:u.email,role:sel.value,rink_ids:[...box.querySelectorAll("input:checked")].map(c=>c.value)});}
+          catch(x){uFail(x);loadUsers();}
+        });
+        li.append(acc);
         const rm=h("button",{class:"btn danger",type:"button",text:"Ta bort"});
         rm.addEventListener("click",async()=>{
           if(!(await confirmBox(`${u.email} kan inte längre ändra schemat och kontot tas bort.`,"Ta bort användare"))) return;
@@ -1577,10 +1856,10 @@ async function loadUsers(){
     }));
   }catch(e){ ul.replaceChildren(); uFail(e); }
 }
-async function makeLink(action,email,existing){
+async function makeLink(action,email,existing,extra){
   $("#uErr").textContent=""; $("#uLinkBox").hidden=true;
   try{
-    const d=await api(action,{email});
+    const d=await api(action,Object.assign({email},extra||{}));
     const base=location.origin+location.pathname;
     const link=`${base}?token_hash=${encodeURIComponent(d.token_hash)}&type=${encodeURIComponent(d.type)}`;
     const fresh=d.type==="invite";
@@ -1593,10 +1872,15 @@ async function makeLink(action,email,existing){
     if(action==="invite"){$("#uEmail").value="";loadUsers();}
   }catch(e){ uFail(e); }
 }
-$("#users").addEventListener("click",()=>{$("#uErr").textContent="";$("#uLinkBox").hidden=true;$("#uEmail").value="";$("#dlgUsers").showModal();loadUsers();});
+$("#users").addEventListener("click",()=>{
+  $("#uErr").textContent="";$("#uLinkBox").hidden=true;$("#uEmail").value="";
+  $("#uRole").value="editor"; $("#uRinks").hidden=false; $("#uRinks").replaceChildren(...rinkChecks(state.rinks.map(r=>r.id)));
+  $("#dlgUsers").showModal();loadUsers();
+});
+$("#uRole").addEventListener("change",()=>{$("#uRinks").hidden=$("#uRole").value!=="editor";});
 $("#inviteForm").addEventListener("submit",async e=>{
   e.preventDefault(); const b=$("#uInvite"); b.disabled=true;
-  await makeLink("invite",$("#uEmail").value.trim()); b.disabled=false;
+  await makeLink("invite",$("#uEmail").value.trim(),false,{role:$("#uRole").value,rink_ids:[...document.querySelectorAll("#uRinks input:checked")].map(c=>c.value)}); b.disabled=false;
 });
 $("#uCopy").addEventListener("click",async()=>{
   const i=$("#uLink"),b=$("#uCopy");
